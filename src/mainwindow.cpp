@@ -7,6 +7,7 @@
 #include "math.h"
 #include "settings.h"
 #include "playbackdisplay.h"
+#include "trackcomboboxdelegate.h"
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent),
@@ -18,17 +19,32 @@ MainWindow::MainWindow(QWidget *parent)
     ui->setupUi(this);
     this->setWindowTitle("Nata Beats");
 
+    auto trackDelegate = new TrackComboBoxDelegate(this);
+    ui->tv_tracks->setItemDelegateForColumn(4, trackDelegate);
+    ui->tv_tracks->setItemDelegateForColumn(5, trackDelegate);
+
     ui->playbackLayout->addWidget(new PlaybackDisplay(m_playbackManager, this));
 
     initAudioDevices();
 
     loadSettings();
+
+    connect(m_playbackManager,
+            SIGNAL(trackStarted(QString)),
+            this,
+            SLOT(checkAutoQueue(QString)),
+            Qt::QueuedConnection);
 }
 
 MainWindow::~MainWindow()
 {
     Settings::write("windowSize", this->size(), "UI");
     Settings::write("windowPos", this->pos(), "UI");
+
+    if (m_model) {
+        m_model->writeDataToCache();
+    }
+
     if (m_rtAudio) {
         m_rtAudio->abortStream();
         delete m_rtAudio;
@@ -51,9 +67,17 @@ void MainWindow::on_pb_togglePlay_clicked()
     else {
         m_rtAudio = new RtAudio();
         RtAudio::DeviceInfo info = m_rtAudio->getDeviceInfo(m_selectedDevice);
+
         RtAudio::StreamParameters parameters;
         parameters.deviceId = m_selectedDevice;
-        parameters.nChannels = 2;
+        // stereo main and aux
+        if (info.outputChannels >= 4) {
+            parameters.nChannels = 4;
+        }
+        // just stereo main
+        else {
+            parameters.nChannels = 2;
+        }
         unsigned int sampleRate = 44100;
         unsigned int bufferFrames = 256; // 256 sample frames
         RtAudio::StreamOptions options;
@@ -135,6 +159,10 @@ void MainWindow::setTrackFolder(QString dirName)
     ui->le_backingTrack->setText(dirName);
     Settings::write("lastDir", dirName);
 
+    if (m_model) {
+        m_model->writeDataToCache();
+    }
+
     m_model = new TrackFolderModel(dir, this);
     connect(m_model, SIGNAL(initialized()), this, SLOT(adjustToTrackInitialization()));
     adjustToTrackInitialization();
@@ -170,9 +198,34 @@ void MainWindow::adjustToTrackInitialization()
             if (!checked) {
                 return;
             }
-            this->m_playbackManager->setQueuedTrack(trackData);
+            this->queueTrack(trackData);
         });
     }
+}
+
+void MainWindow::checkAutoQueue(QString trackFileName)
+{
+    auto track = m_model->getTrackData(trackFileName);
+    if (track.isNull()) {
+        return;
+    }
+    if (track->autoQueueTrack().isEmpty()) {
+        return;
+    }
+    auto autoQueue = m_model->getTrackData(track->autoQueueTrack());
+    if (autoQueue.isNull()) {
+        return;
+    }
+    this->queueTrack(autoQueue);
+}
+
+void MainWindow::queueTrack(QSharedPointer<TrackData> track)
+{
+    QSharedPointer<TrackData> auxTrack;
+    if (!track->auxTrack().isEmpty()) {
+        auxTrack = m_model->getTrackData(track->auxTrack());
+    }
+    this->m_playbackManager->setQueuedTrack(track, auxTrack);
 }
 
 

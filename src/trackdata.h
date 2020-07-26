@@ -17,7 +17,7 @@ public:
     int midiTrigger() const;
     void setMidiTrigger(int midiTrigger);
 
-    QPixmap waveform() const;
+    QImage waveform() const;
 
     QPixmap waveformPreview() const;
 
@@ -31,6 +31,15 @@ public:
     QColor baseColor() const;
     void setBaseColor(const QColor &baseColor);
 
+    QString autoQueueTrack() const;
+    void setAutoQueueTrack(const QString &autoQueueTrack);
+
+    QString auxTrack() const;
+    void setAuxTrack(const QString &auxTrack);
+
+    friend QDataStream& operator<<(QDataStream&, const TrackData&);
+    friend QDataStream& operator>>(QDataStream&, TrackData&);
+
 private:
     TrackData() {}
     void renderWaveforms();
@@ -38,10 +47,13 @@ private:
     QString m_fileName;
     double m_bpm;
     int m_midiTrigger;
-    QPixmap m_waveform;
+    QImage m_waveform;
     QPixmap m_waveformPreview;
     QSharedPointer<AudioFileBuffer> m_buffer;
     QColor m_baseColor;
+
+    QString m_autoQueueTrack;
+    QString m_auxTrack;
 
     friend class TrackDataCache;
 };

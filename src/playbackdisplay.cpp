@@ -19,7 +19,7 @@ PlaybackDisplay::PlaybackDisplay(PlaybackManager* playbackManager, QWidget *pare
 void PlaybackDisplay::drawTrack(QPainter *painter, QRect rect, QSharedPointer<TrackData> track)
 {
     painter->save();
-    painter->drawImage(rect, track->waveformPreview().toImage(), track->waveformPreview().rect());
+    painter->drawImage(rect, track->waveform(), track->waveform().rect());
 
     painter->setCompositionMode(QPainter::RasterOp_SourceXorDestination);
     painter->setPen(QColor(0xff, 0xff, 0xff));
@@ -82,9 +82,6 @@ void PlaybackDisplay::paintEvent(QPaintEvent*) {
     QRect queuedTrackRect(this->width()/2, 0, this->width()/2, this->height());
     if (!m_playbackManager->queuedTrack().isNull()) {
         drawTrack(&painter, queuedTrackRect, m_playbackManager->queuedTrack());
-    }
-    else if (!m_playbackManager->activeTrack().isNull()) {
-        drawTrack(&painter, queuedTrackRect, m_playbackManager->activeTrack());
     }
     else {
         drawNotification(&painter, queuedTrackRect, "No Queued Track");

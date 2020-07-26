@@ -32,6 +32,9 @@ private slots:
     void setTrackFolder(QString dirName);
     void adjustToTrackInitialization();
 
+    void checkAutoQueue(QString trackFileName);
+    void queueTrack(QSharedPointer<TrackData> track);
+
 private:
     Ui::MainWindow *ui;
     TrackFolderModel* m_model;

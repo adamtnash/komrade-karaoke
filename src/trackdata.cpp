@@ -5,11 +5,16 @@
 #include <QRandomGenerator>
 #include "trackdatacache.h"
 
+static int hue = 128;
 QSharedPointer<TrackData> TrackData::fromFileName(QString fileName)
 {
     QFileInfo fileInfo(fileName);
     TrackDataCache cache(fileName);
     auto cachedData = cache.read();
+
+    if (!cachedData.isNull()) {
+        return cachedData;
+    }
 
     auto data = QSharedPointer<TrackData>(new TrackData());
     data->m_fileName = fileInfo.fileName();
@@ -17,15 +22,10 @@ QSharedPointer<TrackData> TrackData::fromFileName(QString fileName)
     data->m_midiTrigger = 200;
     data->m_buffer = AudioFileBuffer::fromWavFile(fileName);
 
-    data->m_baseColor = QColor::fromHsl(QRandomGenerator::system()->generate()%255, 0x33, 0x99);
+    data->m_baseColor = QColor::fromHsl(hue, 0x44, 0xbb);
+    hue = (hue + 20) % 255;
 
-    if (cachedData == nullptr) {
-        data->renderWaveforms();
-    }
-    else {
-        data->m_waveform = cachedData->m_waveform;
-        data->m_waveformPreview = cachedData->m_waveformPreview;
-    }
+    data->renderWaveforms();
 
     cache.write(data);
 
@@ -75,21 +75,14 @@ void TrackData::renderWaveforms()
         paint.drawLine(x, half - half*avgHigh, x, half - half*avgLow);
     }
 
-    m_waveform = pix;
+    m_waveform = pix.toImage();
 
-//    QPixmap preview(500, 100);
-//    QPainter prePaint(&preview);
-//    prePaint.fillRect(preview.rect(), QColor(200, 200, 200));
-//    prePaint.drawImage(preview.rect(), pix.toImage(), pix.rect());
+    QPixmap preview(90, 30);
+    QPainter prePaint(&preview);
+    prePaint.fillRect(preview.rect(), QColor(200, 200, 200));
+    prePaint.drawImage(preview.rect(), pix.toImage(), pix.rect());
 
-//    prePaint.setPen(QPen(QColor(0xff, 0xff, 0xff, 0x55), 1));
-//    int beatsInTrack = int(double(sampleCount()) / samplesPerBeat());
-//    int xPerBeat = preview.width()/beatsInTrack;
-//    for (int x = xPerBeat; x < preview.width(); x += xPerBeat) {
-//        prePaint.drawLine(x, 0, x, preview.height());
-//    }
-
-    m_waveformPreview = pix;
+    m_waveformPreview = preview;
 }
 
 QColor TrackData::baseColor() const
@@ -101,6 +94,26 @@ void TrackData::setBaseColor(const QColor &baseColor)
 {
     m_baseColor = baseColor;
     renderWaveforms();
+}
+
+QString TrackData::auxTrack() const
+{
+    return m_auxTrack;
+}
+
+void TrackData::setAuxTrack(const QString &auxTrack)
+{
+    m_auxTrack = auxTrack;
+}
+
+QString TrackData::autoQueueTrack() const
+{
+    return m_autoQueueTrack;
+}
+
+void TrackData::setAutoQueueTrack(const QString &autoQueueTrack)
+{
+    m_autoQueueTrack = autoQueueTrack;
 }
 
 QString TrackData::fileName() const
@@ -116,7 +129,6 @@ double TrackData::bpm() const
 void TrackData::setBpm(double bpm)
 {
     m_bpm = bpm;
-    renderWaveforms();
 }
 
 int TrackData::midiTrigger() const
@@ -129,7 +141,7 @@ void TrackData::setMidiTrigger(int midiTrigger)
     m_midiTrigger = midiTrigger;
 }
 
-QPixmap TrackData::waveform() const
+QImage TrackData::waveform() const
 {
     return m_waveform;
 }
@@ -157,4 +169,43 @@ int TrackData::sampleCount() const
 double TrackData::samplesPerBeat() const
 {
     return double(m_buffer->sampleRate() * 60) / m_bpm;
+}
+
+const QString VERSION_1 = "track_data_v1";
+QDataStream &operator<<(QDataStream & out, const TrackData &data)
+{
+    out << VERSION_1;
+    out << data.fileName();
+    out << data.bpm();
+    out << data.midiTrigger();
+    out << data.baseColor();
+    out << data.auxTrack();
+    out << data.autoQueueTrack();
+    out << data.waveform();
+    out << data.waveformPreview();
+    out << *(data.buffer().data());
+
+    return out;
+}
+
+QDataStream &operator>>(QDataStream &in, TrackData &data)
+{
+    QString version;
+    in >> version;
+    if (version == VERSION_1) {
+        in >> data.m_fileName;
+        in >> data.m_bpm;
+        in >> data.m_midiTrigger;
+        in >> data.m_baseColor;
+        in >> data.m_auxTrack;
+        in >> data.m_autoQueueTrack;
+        in >> data.m_waveform;
+        in >> data.m_waveformPreview;
+        data.m_buffer = AudioFileBuffer::fromDataStream(in);
+    }
+    else {
+        in.setStatus(QDataStream::Status::ReadCorruptData);
+    }
+
+    return in;
 }

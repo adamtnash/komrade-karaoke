@@ -7,6 +7,8 @@ TrackDataCache::TrackDataCache(QString sourceFileName) :
 
 }
 
+const QString CACHE_V1 = "Nata Beats Cache v1";
+
 void TrackDataCache::write(QSharedPointer<TrackData> trackData)
 {
     QString fileName = cacheFileName();
@@ -20,29 +22,42 @@ void TrackDataCache::write(QSharedPointer<TrackData> trackData)
     QFile file(fileName);
     file.open(QIODevice::WriteOnly | QIODevice::Truncate);
     QDataStream out(&file);
-    out << trackData->waveform() << trackData->waveformPreview();
+    out << CACHE_V1;
+    out << *(trackData.data());
 }
 
-const TrackData* TrackDataCache::read()
+QSharedPointer<TrackData> TrackDataCache::read()
 {
     QString fileName = cacheFileName();
     QFileInfo fileInfo(fileName);
     QDir dir = fileInfo.dir();
 
     if (!dir.exists()) {
-        return nullptr;
+        return QSharedPointer<TrackData>();
     }
 
     QFile file(fileName);
     if (!file.exists()) {
-        return nullptr;
+        return QSharedPointer<TrackData>();
     }
 
     file.open(QIODevice::ReadOnly);
     QDataStream in(&file);
-    in >> m_data.m_waveform >> m_data.m_waveformPreview;
 
-    return &m_data;
+    QString version;
+    in >> version;
+    if (version == CACHE_V1) {
+        TrackData temp;
+        in >> temp;
+        if (in.status() != QDataStream::Ok) {
+            return QSharedPointer<TrackData>();
+        }
+        return QSharedPointer<TrackData>(new TrackData(temp));
+    }
+    else {
+        return QSharedPointer<TrackData>();
+    }
+
 }
 
 QString TrackDataCache::cacheFileName()

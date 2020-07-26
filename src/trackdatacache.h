@@ -12,7 +12,7 @@ public:
     TrackDataCache(QString sourceFileName);
 
     void write(QSharedPointer<TrackData> trackData);
-    const TrackData* read();
+    QSharedPointer<TrackData> read();
 
 private:
     QString cacheFileName();

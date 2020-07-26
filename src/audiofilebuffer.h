@@ -8,6 +8,7 @@
 class AudioFileBuffer
 {
 public:
+    static QSharedPointer<AudioFileBuffer> fromDataStream(QDataStream& in);
     static QSharedPointer<AudioFileBuffer> fromWavFile(QString fileName);
     ~AudioFileBuffer();
 
@@ -16,9 +17,12 @@ public:
     quint32 bytesPerSample() const;
     quint32 sampleRate() const;
 
+    friend QDataStream& operator<<(QDataStream&, const AudioFileBuffer&);
+    friend QDataStream& operator>>(QDataStream&, AudioFileBuffer&);
+
 private:
     AudioFileBuffer();
-    QByteArray m_data;
+    AudioFileBuffer(const AudioFileBuffer &other);
     QVector<float> m_floatData;
     quint32 m_numChannels;
     quint32 m_bytesPerSample;

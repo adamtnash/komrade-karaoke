@@ -1,8 +1,18 @@
 #include "audiofilebuffer.h"
 
 #include <QFile>
+#include <QDataStream>
 
 AudioFileBuffer::AudioFileBuffer()
+{
+
+}
+
+AudioFileBuffer::AudioFileBuffer(const AudioFileBuffer &other) :
+    m_floatData(other.floatData()),
+    m_numChannels(other.numChannels()),
+    m_bytesPerSample(other.bytesPerSample()),
+    m_sampleRate(other.sampleRate())
 {
 
 }
@@ -32,6 +42,13 @@ QVector<float> AudioFileBuffer::floatData() const
     return m_floatData;
 }
 
+QSharedPointer<AudioFileBuffer> AudioFileBuffer::fromDataStream(QDataStream& in)
+{
+    AudioFileBuffer temp;
+    in >> temp;
+    return QSharedPointer<AudioFileBuffer>(new AudioFileBuffer(temp));
+}
+
 QSharedPointer<AudioFileBuffer> AudioFileBuffer::fromWavFile(QString fileName)
 {
     QFile wavFile(fileName);
@@ -55,6 +72,8 @@ QSharedPointer<AudioFileBuffer> AudioFileBuffer::fromWavFile(QString fileName)
         return QSharedPointer<AudioFileBuffer>();
     }
 
+    QByteArray audioData;
+
     // Parse chunks
     while (wavFile.bytesAvailable() >= 8) {
         QByteArray ckId = wavFile.read(4);
@@ -63,7 +82,7 @@ QSharedPointer<AudioFileBuffer> AudioFileBuffer::fromWavFile(QString fileName)
             break;
         }
         if (ckId == "data") {
-            audio->m_data = wavFile.read(ckSize);
+            audioData = wavFile.read(ckSize);
             if (ckSize % 2) {
                 wavFile.read(1);
             }
@@ -88,32 +107,64 @@ QSharedPointer<AudioFileBuffer> AudioFileBuffer::fromWavFile(QString fileName)
 
     // Parse PCM data
     if (audio->m_bytesPerSample == 1) {
-        qint8* rawData = (qint8*)audio->m_data.data();
-        for (int i = 0; i < audio->m_data.size(); i++) {
+        qint8* rawData = (qint8*)audioData.data();
+        for (int i = 0; i < audioData.size(); i++) {
             audio->m_floatData.push_back(float(rawData[i]) / 128.0f);
         }
     }
     else if (audio->m_bytesPerSample == 2) {
-        qint16* rawData = (qint16*)audio->m_data.data();
-        for (int i = 0; i < audio->m_data.size()/2; i++) {
+        qint16* rawData = (qint16*)audioData.data();
+        for (int i = 0; i < audioData.size()/2; i++) {
             audio->m_floatData.push_back(float(rawData[i]) / 32768.0f);
         }
     }
     else if (audio->m_bytesPerSample == 3) {
-        quint8* rawData = (quint8*)audio->m_data.data();
-        for (int i = 0; i+2 < audio->m_data.size(); i+=3) {
+        quint8* rawData = (quint8*)audioData.data();
+        for (int i = 0; i+2 < audioData.size(); i+=3) {
             qint32 val = rawData[i] + (rawData[i+1] << 8) + (rawData[i+2] << 16);
             val = val - 2*(0x800000 & val);
             audio->m_floatData.push_back(double(val) / 8388608.0);
         }
     }
     else if (audio->m_bytesPerSample == 4) {
-        qint32* rawData = (qint32*)audio->m_data.data();
-        for (int i = 0; i < audio->m_data.size()/4; i++) {
+        qint32* rawData = (qint32*)audioData.data();
+        for (int i = 0; i < audioData.size()/4; i++) {
             audio->m_floatData.push_back(float(double(rawData[i]) / 2147483648.0));
         }
     }
 
 
     return audio;
+}
+
+
+const QString VERSION_1 = "audio_v1";
+QDataStream &operator<<(QDataStream & out, const AudioFileBuffer &buffer)
+{
+    out.setFloatingPointPrecision(QDataStream::SinglePrecision);
+    out << VERSION_1;
+    out << buffer.sampleRate();
+    out << buffer.bytesPerSample();
+    out << buffer.numChannels();
+    out << buffer.floatData();
+
+    return out;
+}
+
+QDataStream &operator>>(QDataStream &in, AudioFileBuffer &buffer)
+{
+    in.setFloatingPointPrecision(QDataStream::SinglePrecision);
+    QString version;
+    in >> version;
+    if (version == VERSION_1) {
+        in >> buffer.m_sampleRate;
+        in >> buffer.m_bytesPerSample;
+        in >> buffer.m_numChannels;
+        in >> buffer.m_floatData;
+    }
+    else {
+        in.setStatus(QDataStream::Status::ReadCorruptData);
+    }
+
+    return in;
 }

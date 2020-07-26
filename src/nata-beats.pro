@@ -15,6 +15,7 @@ SOURCES += \
     playbackdisplay.cpp \
     playbackmanager.cpp \
     settings.cpp \
+    trackcomboboxdelegate.cpp \
     trackdata.cpp \
     trackdatacache.cpp \
     trackfoldermodel.cpp
@@ -27,6 +28,7 @@ HEADERS += \
     playbackdisplay.h \
     playbackmanager.h \
     settings.h \
+    trackcomboboxdelegate.h \
     trackdata.h \
     trackdatacache.h \
     trackfoldermodel.h

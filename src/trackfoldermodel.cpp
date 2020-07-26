@@ -1,24 +1,24 @@
 #include "trackfoldermodel.h"
 #include <QDebug>
 #include <QPainter>
-#include <QRandomGenerator>
+#include "trackdatacache.h"
 
 TrackFolderModel::TrackFolderModel(QDir trackFolder, QObject *parent)
     : QAbstractTableModel(parent),
       m_trackFolder(trackFolder)
 {
     m_trackWatcher = new QFileSystemWatcher({m_trackFolder.path()}, this);
-    connect(m_trackWatcher,
-            SIGNAL(directoryChanged(QString)),
-            this,
-            SLOT(initTrackData()));
     initTrackData();
 }
 
 void TrackFolderModel::initTrackData()
 {
-    QRandomGenerator r;
-    r.seed(QRandomGenerator::system()->generate());
+    // Disconnect watcher so that cache writes don't trigger another init
+    disconnect(m_trackWatcher,
+            SIGNAL(directoryChanged(QString)),
+            this,
+            SLOT(initTrackData()));
+
     beginResetModel();
     m_trackDataMap.clear();
     m_tracks = m_trackFolder.entryList({"*.wav"}, QDir::Files, QDir::Name);
@@ -32,6 +32,12 @@ void TrackFolderModel::initTrackData()
         }
     }
     endResetModel();
+
+    connect(m_trackWatcher,
+            SIGNAL(directoryChanged(QString)),
+            this,
+            SLOT(initTrackData()));
+
     emit initialized();
 }
 
@@ -54,6 +60,12 @@ QVariant TrackFolderModel::headerData(int section, Qt::Orientation orientation, 
         else if (section == 3) {
             return "";
         }
+        else if (section == 4) {
+            return "Auto-Queue";
+        }
+        else if (section == 5) {
+            return "Aux";
+        }
     }
 
     return QVariant();
@@ -73,7 +85,7 @@ int TrackFolderModel::columnCount(const QModelIndex &parent) const
     if (parent.isValid())
         return 0;
 
-    return 4;
+    return 6;
 }
 
 QVariant TrackFolderModel::data(const QModelIndex &index, int role) const
@@ -101,6 +113,12 @@ QVariant TrackFolderModel::data(const QModelIndex &index, int role) const
         else if (index.column() == 3) {
             return trackData->waveform();
         }
+        else if (index.column() == 4) {
+            return trackData->autoQueueTrack();
+        }
+        else if (index.column() == 5) {
+            return trackData->auxTrack();
+        }
     }
     else if (role == Qt::EditRole) {
         if (index.column() == 1) {
@@ -108,6 +126,12 @@ QVariant TrackFolderModel::data(const QModelIndex &index, int role) const
         }
         else if (index.column() == 2) {
             return trackData->midiTrigger();
+        }
+        else if (index.column() == 4) {
+            return trackData->autoQueueTrack();
+        }
+        else if (index.column() == 5) {
+            return trackData->auxTrack();
         }
     }
     else if (role == Qt::DecorationRole) {
@@ -130,7 +154,10 @@ QVariant TrackFolderModel::data(const QModelIndex &index, int role) const
 bool TrackFolderModel::setData(const QModelIndex &index, const QVariant &value, int role)
 {
 
-    if (!(index.column() == 1 || index.column() == 2)) {
+    if (!(index.column() == 1
+             || index.column() == 2
+             || index.column() == 4
+             || index.column() == 5 )) {
         return false;
     }
 
@@ -146,13 +173,22 @@ bool TrackFolderModel::setData(const QModelIndex &index, const QVariant &value, 
         if (role == Qt::EditRole) {
             if (index.column() == 1) {
                 trackData->setBpm(value.toDouble());
-                emit dataChanged(index, index, {role});
-                emit dataChanged(this->index(index.row(), 0), this->index(index.row(), this->columnCount()-1), {Qt::DisplayRole});
+                emit dataChanged(index, index, {role, Qt::DisplayRole});
                 return true;
             }
             else if (index.column() == 2) {
                 trackData->setMidiTrigger(value.toInt());
-                emit dataChanged(index, index, {role});
+                emit dataChanged(index, index, {role, Qt::DisplayRole});
+                return true;
+            }
+            else if (index.column() == 4) {
+                trackData->setAutoQueueTrack(value.toString());
+                emit dataChanged(index, index, {role, Qt::DisplayRole});
+                return true;
+            }
+            else if (index.column() == 5) {
+                trackData->setAuxTrack(value.toString());
+                emit dataChanged(index, index, {role, Qt::DisplayRole});
                 return true;
             }
         }
@@ -167,13 +203,15 @@ Qt::ItemFlags TrackFolderModel::flags(const QModelIndex &index) const
 
     Qt::ItemFlags flags = Qt::ItemIsEnabled | Qt::ItemIsSelectable;
 
-    if (index.column() == 1 || index.column() == 2) {
+    if (index.column() == 1
+            || index.column() == 2
+            || index.column() == 4
+            || index.column() == 5) {
         flags |= Qt::ItemIsEditable;
     }
 
     return flags;
 }
-
 
 QSharedPointer<TrackData> TrackFolderModel::getTrackData(int row)
 {
@@ -183,4 +221,17 @@ QSharedPointer<TrackData> TrackFolderModel::getTrackData(int row)
 
     auto track = m_tracks.at(row);
     return m_trackDataMap.value(track);
+}
+
+QSharedPointer<TrackData> TrackFolderModel::getTrackData(QString fileName)
+{
+    return m_trackDataMap.value(fileName);
+}
+
+void TrackFolderModel::writeDataToCache()
+{
+    for (auto track : m_trackDataMap.values()) {
+        TrackDataCache cache(m_trackFolder.filePath(track->fileName()));
+        cache.write(track);
+    }
 }

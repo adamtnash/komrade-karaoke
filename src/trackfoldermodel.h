@@ -31,6 +31,9 @@ public:
     Qt::ItemFlags flags(const QModelIndex& index) const override;
 
     QSharedPointer<TrackData> getTrackData(int row);
+    QSharedPointer<TrackData> getTrackData(QString fileName);
+
+    void writeDataToCache();
 
 signals:
     void initialized();
