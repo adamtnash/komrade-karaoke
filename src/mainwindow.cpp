@@ -29,6 +29,16 @@ MainWindow::MainWindow(QWidget *parent)
 
     loadSettings();
 
+    m_rtMidiIn = new RtMidiIn();
+    for (unsigned int i = 0; i < m_rtMidiIn->getPortCount(); i++) {
+        ui->cb_midiInput->addItem(m_rtMidiIn->getPortName(i).c_str(), QVariant(i));
+    }
+    connect(ui->cb_midiInput, &QComboBox::currentIndexChanged, [this](int idx) {
+       m_rtMidiIn->closePort();
+       m_rtMidiIn->openPort(ui->cb_midiInput->itemData(idx).toInt());
+    });
+    m_rtMidiIn->setCallback( &MainWindow::midiInputCallback , static_cast<void*>(this));
+
     connect(m_playbackManager,
             SIGNAL(trackStarted(QString)),
             this,
@@ -49,6 +59,12 @@ MainWindow::~MainWindow()
         m_rtAudio->abortStream();
         delete m_rtAudio;
     }
+
+    if (m_rtMidiIn) {
+        m_rtMidiIn->closePort();
+        delete m_rtMidiIn;
+    }
+
     delete ui;
     delete m_playbackManager;
 }
@@ -228,9 +244,25 @@ void MainWindow::queueTrack(QSharedPointer<TrackData> track)
     this->m_playbackManager->setQueuedTrack(track, auxTrack);
 }
 
+void MainWindow::checkMidiInput(double deltatime, std::vector<unsigned char> *message)
+{
+    QByteArray ba(reinterpret_cast<char*>(message->data()), message->size());
+    ui->lb_midiCheck->setText(ba.toHex());
+}
+
 
 int MainWindow::playbackCallback(void *outputBuffer, void *inputBuffer, unsigned int nFrames, double streamTime, RtAudioStreamStatus status, void *userData)
 {
     PlaybackManager* playbackManager = static_cast<PlaybackManager*>(userData);
     return playbackManager->writeNextAudioData(outputBuffer, nFrames);
+}
+
+
+void MainWindow::midiInputCallback(double deltatime, std::vector< unsigned char > *message, void *userData)
+{
+    MainWindow* window = static_cast<MainWindow*>(userData);
+    if (window)
+    {
+        window->checkMidiInput(deltatime, message);
+    }
 }

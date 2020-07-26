@@ -38,6 +38,7 @@ FORMS += \
 
 win32 {
     DEFINES += __WINDOWS_DS__
+    DEFINES += __WINDOWS_MM__
     LIBS += -lole32 -lwinmm -ldsound
 }
 
