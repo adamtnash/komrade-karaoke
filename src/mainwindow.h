@@ -7,6 +7,7 @@
 #include "RtMidi.h"
 #include "trackfoldermodel.h"
 #include "playbackmanager.h"
+#include "midimanager.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -21,13 +22,11 @@ public:
     ~MainWindow();
 
     static int playbackCallback(void *outputBuffer, void *inputBuffer, unsigned int nFrames, double streamTime, RtAudioStreamStatus status, void *userData);
-
-    static void midiInputCallback(double deltatime, std::vector< unsigned char > *message, void *userData);
+    static void playbackErrorCallback(RtAudioError::Type type, const std::string &errorText);
 
 private slots:
     void on_pb_togglePlay_clicked();
-    void on_cb_midiInput_currentIndexChanged(int index);
-    void on_cb_audioOutput_currentIndexChanged(int index);
+    void selectAudioDeviceAt(int index);
     void on_pb_backingTrackSelect_clicked();
 
     void loadSettings();
@@ -38,7 +37,11 @@ private slots:
     void checkAutoQueue(QString trackFileName);
     void queueTrack(QSharedPointer<TrackData> track);
 
-    void checkMidiInput(double deltatime, std::vector< unsigned char > *message);
+    void on_pb_showTracks_clicked();
+
+    void on_pb_configurePlayback_clicked();
+
+    void handleMidi(QByteArray message);
 
 private:
     Ui::MainWindow *ui;
@@ -46,9 +49,12 @@ private:
     PlaybackManager* m_playbackManager;
     QMap<QSharedPointer<TrackData>, QPushButton*> m_trackQueuePbs;
 
+    QByteArray m_playMidiControl;
+
     int m_selectedDevice = -1;
 
     RtAudio* m_rtAudio;
-    RtMidiIn* m_rtMidiIn;
+
+    MidiManager* m_midiManager;
 };
 #endif // MAINWINDOW_H

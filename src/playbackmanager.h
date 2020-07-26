@@ -26,6 +26,7 @@ public:
 
 signals:
     void playbackChanged();
+    void playbackStopped();
     void trackStarted(QString);
 
 private:

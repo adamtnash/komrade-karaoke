@@ -14,8 +14,8 @@ public:
     double bpm() const;
     void setBpm(double bpm);
 
-    int midiTrigger() const;
-    void setMidiTrigger(int midiTrigger);
+    QByteArray midiTrigger() const;
+    void setMidiTrigger(QByteArray midiTrigger);
 
     QImage waveform() const;
 
@@ -46,7 +46,7 @@ private:
 
     QString m_fileName;
     double m_bpm;
-    int m_midiTrigger;
+    QByteArray m_midiTrigger;
     QImage m_waveform;
     QPixmap m_waveformPreview;
     QSharedPointer<AudioFileBuffer> m_buffer;

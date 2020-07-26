@@ -108,7 +108,7 @@ QVariant TrackFolderModel::data(const QModelIndex &index, int role) const
             return trackData->bpm();
         }
         else if (index.column() == 2) {
-            return trackData->midiTrigger();
+            return trackData->midiTrigger().toHex();
         }
         else if (index.column() == 3) {
             return trackData->waveform();
@@ -177,7 +177,7 @@ bool TrackFolderModel::setData(const QModelIndex &index, const QVariant &value, 
                 return true;
             }
             else if (index.column() == 2) {
-                trackData->setMidiTrigger(value.toInt());
+                trackData->setMidiTrigger(value.toByteArray());
                 emit dataChanged(index, index, {role, Qt::DisplayRole});
                 return true;
             }

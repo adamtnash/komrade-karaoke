@@ -75,6 +75,7 @@ int PlaybackManager::writeNextAudioData(void *outputBuffer, unsigned int nFrames
     }
 
     if (!trackOk(m_activeTrack)) {
+        emit playbackStopped();
         return 1;
     }
 
@@ -85,6 +86,7 @@ int PlaybackManager::writeNextAudioData(void *outputBuffer, unsigned int nFrames
             m_activeSample = 0;
             checkQueue();
             if (!trackOk(m_activeTrack)) {
+                emit playbackStopped();
                 return 1;
             }
             auxPlayback = m_outChannels == 4 && trackOk(m_activeAuxTrack);

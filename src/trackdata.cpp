@@ -19,7 +19,7 @@ QSharedPointer<TrackData> TrackData::fromFileName(QString fileName)
     auto data = QSharedPointer<TrackData>(new TrackData());
     data->m_fileName = fileInfo.fileName();
     data->m_bpm = 120;
-    data->m_midiTrigger = 200;
+    data->m_midiTrigger = QByteArray();
     data->m_buffer = AudioFileBuffer::fromWavFile(fileName);
 
     data->m_baseColor = QColor::fromHsl(hue, 0x44, 0xbb);
@@ -131,12 +131,12 @@ void TrackData::setBpm(double bpm)
     m_bpm = bpm;
 }
 
-int TrackData::midiTrigger() const
+QByteArray TrackData::midiTrigger() const
 {
     return m_midiTrigger;
 }
 
-void TrackData::setMidiTrigger(int midiTrigger)
+void TrackData::setMidiTrigger(QByteArray midiTrigger)
 {
     m_midiTrigger = midiTrigger;
 }

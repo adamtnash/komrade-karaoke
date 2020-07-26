@@ -8,13 +8,16 @@
 #include "settings.h"
 #include "playbackdisplay.h"
 #include "trackcomboboxdelegate.h"
+#include "midimessagedelegate.h"
+#include "midimessagedialog.h"
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent),
       ui(new Ui::MainWindow),
       m_model(nullptr),
       m_playbackManager(new PlaybackManager()),
-      m_rtAudio(nullptr)
+      m_rtAudio(nullptr),
+      m_midiManager(new MidiManager(this))
 {
     ui->setupUi(this);
     this->setWindowTitle("Nata Beats");
@@ -23,26 +26,28 @@ MainWindow::MainWindow(QWidget *parent)
     ui->tv_tracks->setItemDelegateForColumn(4, trackDelegate);
     ui->tv_tracks->setItemDelegateForColumn(5, trackDelegate);
 
+    auto midiDelegate = new MidiMessageDelegate(m_midiManager, this);
+    ui->tv_tracks->setItemDelegateForColumn(2, midiDelegate);
+
     ui->playbackLayout->addWidget(new PlaybackDisplay(m_playbackManager, this));
 
     initAudioDevices();
 
     loadSettings();
 
-    m_rtMidiIn = new RtMidiIn();
-    for (unsigned int i = 0; i < m_rtMidiIn->getPortCount(); i++) {
-        ui->cb_midiInput->addItem(m_rtMidiIn->getPortName(i).c_str(), QVariant(i));
-    }
-    connect(ui->cb_midiInput, &QComboBox::currentIndexChanged, [this](int idx) {
-       m_rtMidiIn->closePort();
-       m_rtMidiIn->openPort(ui->cb_midiInput->itemData(idx).toInt());
-    });
-    m_rtMidiIn->setCallback( &MainWindow::midiInputCallback , static_cast<void*>(this));
+    m_midiManager->registerDeviceSelect(ui->cb_midiInput);
+    connect(m_midiManager, SIGNAL(midiRx(QByteArray)), this, SLOT(handleMidi(QByteArray)), Qt::QueuedConnection);
 
     connect(m_playbackManager,
             SIGNAL(trackStarted(QString)),
             this,
             SLOT(checkAutoQueue(QString)),
+            Qt::QueuedConnection);
+
+    connect(m_playbackManager,
+            SIGNAL(playbackStopped()),
+            this,
+            SLOT(on_pb_togglePlay_clicked()),
             Qt::QueuedConnection);
 }
 
@@ -50,6 +55,7 @@ MainWindow::~MainWindow()
 {
     Settings::write("windowSize", this->size(), "UI");
     Settings::write("windowPos", this->pos(), "UI");
+    Settings::write("playMidiControl", m_playMidiControl, "Playback");
 
     if (m_model) {
         m_model->writeDataToCache();
@@ -58,11 +64,6 @@ MainWindow::~MainWindow()
     if (m_rtAudio) {
         m_rtAudio->abortStream();
         delete m_rtAudio;
-    }
-
-    if (m_rtMidiIn) {
-        m_rtMidiIn->closePort();
-        delete m_rtMidiIn;
     }
 
     delete ui;
@@ -76,9 +77,11 @@ void MainWindow::on_pb_togglePlay_clicked()
             m_rtAudio->stopStream();
         }
         catch ( RtAudioError& e ) {
-            qDebug() << '\n' << e.getMessage().c_str() << '\n';
+            qDebug() << "\nError while stopping RtAudio stream:\n" << e.getMessage().c_str() << '\n';
         }
+        delete m_rtAudio;
         m_rtAudio = nullptr;
+        ui->pb_togglePlay->setText("Play");
     }
     else {
         m_rtAudio = new RtAudio();
@@ -89,10 +92,12 @@ void MainWindow::on_pb_togglePlay_clicked()
         // stereo main and aux
         if (info.outputChannels >= 4) {
             parameters.nChannels = 4;
+            m_playbackManager->setOutChannels(4);
         }
         // just stereo main
         else {
             parameters.nChannels = 2;
+            m_playbackManager->setOutChannels(2);
         }
         unsigned int sampleRate = 44100;
         unsigned int bufferFrames = 256; // 256 sample frames
@@ -100,25 +105,32 @@ void MainWindow::on_pb_togglePlay_clicked()
         //options.flags = RTAUDIO_NONINTERLEAVED;
 
         try {
-            qDebug() << "opening";
             m_rtAudio->openStream( &parameters, NULL, RTAUDIO_FLOAT32,
                             sampleRate, &bufferFrames, &playbackCallback, m_playbackManager, &options );
             m_rtAudio->startStream();
+            ui->pb_togglePlay->setText("Stop");
         }
         catch ( RtAudioError& e ) {
-            qDebug() << '\n' << e.getMessage().c_str() << '\n';
+            qDebug() << "\nError while starting RtAudio stream:\n" << e.getMessage().c_str() << '\n';
+            this->on_pb_togglePlay_clicked();
         }
     }
 }
 
-void MainWindow::on_cb_midiInput_currentIndexChanged(int index)
+void MainWindow::selectAudioDeviceAt(int index)
 {
-}
-
-void MainWindow::on_cb_audioOutput_currentIndexChanged(int index)
-{
-    m_selectedDevice = index;
-    ui->pb_togglePlay->setEnabled(index >= 0);
+    if (index >=0) {
+        if (ui->cb_audioOutput->currentIndex() != index) {
+            ui->cb_audioOutput->setCurrentIndex(index);
+        }
+        m_selectedDevice = ui->cb_audioOutput->itemData(index).toInt();
+        ui->pb_togglePlay->setEnabled(true);
+        Settings::write("lastOutputDevice", ui->cb_audioOutput->itemText(index), "Playback");
+    }
+    else {
+        m_selectedDevice = -1;
+        ui->pb_togglePlay->setEnabled(false);
+    }
 }
 
 void MainWindow::on_pb_backingTrackSelect_clicked()
@@ -143,24 +155,45 @@ void MainWindow::loadSettings()
         this->move(wPos.toPoint());
         this->resize(wSize.toSize());
     }
+
+    QVariant playMidi = Settings::read("playMidiControl", "Playback");
+    if (!playMidi.isNull()) {
+        m_playMidiControl = playMidi.toByteArray();
+    }
 }
 
 void MainWindow::initAudioDevices()
 {
+    disconnect(ui->cb_audioOutput, &QComboBox::currentIndexChanged, this, &MainWindow::selectAudioDeviceAt);
+
     ui->pb_togglePlay->setEnabled(false);
     m_selectedDevice = 0;
 
     ui->cb_audioOutput->clear();
     RtAudio dac;
-    qDebug() << dac.getDeviceCount();
     for (uint i = 0; i < dac.getDeviceCount(); i++) {
         auto info = dac.getDeviceInfo(i);
-        ui->cb_audioOutput->addItem(QString(info.name.c_str()));
+        if (info.probed) {
+            ui->cb_audioOutput->addItem(QString(info.name.c_str()), QVariant(i));
+        }
     }
 
     if (ui->cb_audioOutput->count() > 0) {
-        ui->cb_audioOutput->setCurrentIndex(0);
+        int currIdx = 0;
+        QVariant lastDevice = Settings::read("lastOutputDevice", "Playback");
+        if (!lastDevice.isNull()) {
+            int lastIdx = ui->cb_audioOutput->findText(lastDevice.toString());
+            if (lastIdx >= 0) {
+                currIdx = lastIdx;
+            }
+        }
+        this->selectAudioDeviceAt(currIdx);
     }
+    else {
+        this->selectAudioDeviceAt(-1);
+    }
+
+    connect(ui->cb_audioOutput, &QComboBox::currentIndexChanged, this, &MainWindow::selectAudioDeviceAt);
 }
 
 
@@ -244,25 +277,50 @@ void MainWindow::queueTrack(QSharedPointer<TrackData> track)
     this->m_playbackManager->setQueuedTrack(track, auxTrack);
 }
 
-void MainWindow::checkMidiInput(double deltatime, std::vector<unsigned char> *message)
-{
-    QByteArray ba(reinterpret_cast<char*>(message->data()), message->size());
-    ui->lb_midiCheck->setText(ba.toHex());
-}
-
-
 int MainWindow::playbackCallback(void *outputBuffer, void *inputBuffer, unsigned int nFrames, double streamTime, RtAudioStreamStatus status, void *userData)
 {
     PlaybackManager* playbackManager = static_cast<PlaybackManager*>(userData);
     return playbackManager->writeNextAudioData(outputBuffer, nFrames);
 }
 
-
-void MainWindow::midiInputCallback(double deltatime, std::vector< unsigned char > *message, void *userData)
+void MainWindow::playbackErrorCallback(RtAudioError::Type type, const std::string &errorText)
 {
-    MainWindow* window = static_cast<MainWindow*>(userData);
-    if (window)
-    {
-        window->checkMidiInput(deltatime, message);
+    qDebug() << "\nError with RtAudio playback" << errorText.c_str() << '\n';
+}
+
+void MainWindow::on_pb_showTracks_clicked()
+{
+    ui->scroll_trackButtons->setHidden(!ui->scroll_trackButtons->isHidden());
+}
+
+void MainWindow::on_pb_configurePlayback_clicked()
+{
+    MidiMessageDialog * dialog = new MidiMessageDialog(m_midiManager, this);
+    dialog->setMessage(m_playMidiControl);
+    dialog->setWindowTitle("Playback MIDI Control");
+    if (dialog->exec()) {
+        m_playMidiControl = dialog->getMessage();
+    }
+}
+
+void MainWindow::handleMidi(QByteArray message)
+{
+    ui->lb_midiCheck->setText("0x"+message.toHex());
+    if (message.isEmpty()) {
+        return;
+    }
+    if (message == m_playMidiControl) {
+        this->on_pb_togglePlay_clicked();
+    }
+    else {
+        for (int row = 0; row < m_model->rowCount(); row++) {
+            auto trackData = m_model->getTrackData(row);
+            if (trackData.isNull()) {
+                continue;
+            }
+            if (message == trackData->midiTrigger()) {
+                this->queueTrack(trackData);
+            }
+        }
     }
 }

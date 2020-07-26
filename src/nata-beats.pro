@@ -7,11 +7,13 @@ TARGET = nata_beats
 DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x060000    # disables all the APIs deprecated before Qt 6.0.0
 
 SOURCES += \
-    RtAudio.cpp \
-    RtMidi.cpp \
     audiofilebuffer.cpp \
     main.cpp \
     mainwindow.cpp \
+    midimanager.cpp \
+    midimessagedelegate.cpp \
+    midimessagedialog.cpp \
+    midimessageselect.cpp \
     playbackdisplay.cpp \
     playbackmanager.cpp \
     settings.cpp \
@@ -21,10 +23,12 @@ SOURCES += \
     trackfoldermodel.cpp
 
 HEADERS += \
-    RtAudio.h \
-    RtMidi.h \
     audiofilebuffer.h \
     mainwindow.h \
+    midimanager.h \
+    midimessagedelegate.h \
+    midimessagedialog.h \
+    midimessageselect.h \
     playbackdisplay.h \
     playbackmanager.h \
     settings.h \
@@ -34,15 +38,31 @@ HEADERS += \
     trackfoldermodel.h
 
 FORMS += \
-    mainwindow.ui
+    mainwindow.ui \
+    midimessagedialog.ui \
+    midimessageselect.ui
+
+#RtAudio and MIDI
+INCLUDEPATH += rtaudio rtmidi
+SOURCES += \
+    rtaudio/RtAudio.cpp \
+    rtmidi/RtMidi.cpp
+
+HEADERS += \
+    rtaudio/RtAudio.h \
+    rtmidi/RtMidi.h
 
 win32 {
-    DEFINES += __WINDOWS_DS__
+    DEFINES += __WINDOWS_ASIO__
     DEFINES += __WINDOWS_MM__
-    LIBS += -lole32 -lwinmm -ldsound
+    LIBS += -lole32 -lwinmm
+
+    INCLUDEPATH += rtaudio/include
+    SOURCES += $$files(rtaudio/include/*.cpp)
+    HEADERS += $$files(rtaudio/include/*.h)
 }
 
-linux {
+unix {
     DEFINES += __UNIX_JACK__
     LIBS += -ljack -lpthread
 }
