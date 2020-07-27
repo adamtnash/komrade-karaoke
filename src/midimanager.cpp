@@ -25,7 +25,7 @@ void MidiManager::registerDeviceSelect(QComboBox *cb)
         Settings::write("lastMidiIn", cb->itemText(idx), "MIDI");
      };
 
-    connect(cb, &QComboBox::currentIndexChanged, selectMidi);
+    connect(cb, QOverload<int>::of(&QComboBox::currentIndexChanged), selectMidi);
 
     if (cb->count() > 0) {
         int currIdx = 0;

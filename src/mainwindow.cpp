@@ -164,7 +164,8 @@ void MainWindow::loadSettings()
 
 void MainWindow::initAudioDevices()
 {
-    disconnect(ui->cb_audioOutput, &QComboBox::currentIndexChanged, this, &MainWindow::selectAudioDeviceAt);
+    disconnect(ui->cb_audioOutput, QOverload<int>::of(&QComboBox::currentIndexChanged),
+               this, &MainWindow::selectAudioDeviceAt);
 
     ui->pb_togglePlay->setEnabled(false);
     m_selectedDevice = 0;
@@ -193,7 +194,8 @@ void MainWindow::initAudioDevices()
         this->selectAudioDeviceAt(-1);
     }
 
-    connect(ui->cb_audioOutput, &QComboBox::currentIndexChanged, this, &MainWindow::selectAudioDeviceAt);
+    connect(ui->cb_audioOutput, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &MainWindow::selectAudioDeviceAt);
 }
 
 
