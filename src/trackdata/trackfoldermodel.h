@@ -2,10 +2,8 @@
 #define TRACKFOLDERMODEL_H
 
 #include <QAbstractTableModel>
-#include <QDir>
-#include <QFileSystemWatcher>
 #include <QSharedPointer>
-#include "trackdata.h"
+#include "trackfolder.h"
 
 class TrackFolderModel : public QAbstractTableModel
 {
@@ -13,7 +11,7 @@ class TrackFolderModel : public QAbstractTableModel
 
 public:
 
-    explicit TrackFolderModel(QDir trackFolder, QObject *parent = nullptr);
+    explicit TrackFolderModel(QSharedPointer<TrackFolder> trackFolder, QObject *parent = nullptr);
 
     // Header:
     QVariant headerData(int section, Qt::Orientation orientation, int role = Qt::DisplayRole) const override;
@@ -33,19 +31,14 @@ public:
     QSharedPointer<TrackData> getTrackData(int row);
     QSharedPointer<TrackData> getTrackData(QString fileName);
 
-    void writeDataToCache();
-
 signals:
     void initialized();
 
 private slots:
-    void initTrackData();
+    void fullReset();
 
 private:
-    QStringList m_tracks;
-    QMap<QString, QSharedPointer<TrackData>> m_trackDataMap;
-    QDir m_trackFolder;
-    QFileSystemWatcher* m_trackWatcher;
+    QSharedPointer<TrackFolder> m_trackFolder;
 };
 
 #endif // TRACKFOLDERMODEL_H

@@ -13,7 +13,7 @@ class MidiMessageDialog : public QDialog
     Q_OBJECT
 
 public:
-    explicit MidiMessageDialog(MidiManager* midiManager, QWidget *parent = nullptr);
+    explicit MidiMessageDialog(MidiInManager* midiManager, QWidget *parent = nullptr);
     ~MidiMessageDialog();
 
     void setMessage(QByteArray msg);

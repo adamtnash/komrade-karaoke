@@ -3,11 +3,9 @@
 
 #include <QMainWindow>
 #include <QPushButton>
-#include "RtAudio.h"
-#include "RtMidi.h"
 #include "trackfoldermodel.h"
 #include "playbackmanager.h"
-#include "midimanager.h"
+#include "midiinmanager.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -21,40 +19,41 @@ public:
     MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
 
-    static int playbackCallback(void *outputBuffer, void *inputBuffer, unsigned int nFrames, double streamTime, RtAudioStreamStatus status, void *userData);
-    static void playbackErrorCallback(RtAudioError::Type type, const std::string &errorText);
-
 private slots:
     void on_pb_togglePlay_clicked();
-    void selectAudioDeviceAt(int index);
     void on_pb_backingTrackSelect_clicked();
+    void on_pb_showTracks_clicked();
+    void on_pb_configurePlayback_clicked();
 
     void loadSettings();
-    void initAudioDevices();
+
     void setTrackFolder(QString dirName);
     void adjustToTrackInitialization();
-
     void checkAutoQueue(QString trackFileName);
     void queueTrack(QSharedPointer<TrackData> track);
 
-    void on_pb_showTracks_clicked();
+    void initAudio();
+    void selectAudioDevice(QString deviceName);
+    void checkPlayback();
+    void playbackStarted();
+    void playbackStopped();
 
-    void on_pb_configurePlayback_clicked();
-
+    void initMidi();
+    void selectMidiPort(QString portName);
     void handleMidi(QByteArray message);
+
+    void reportError(QString errorText, QString title = "Error");
+
+    void on_hs_volume_valueChanged(int value);
 
 private:
     Ui::MainWindow *ui;
+    QSharedPointer<TrackFolder> m_trackFolder;
     TrackFolderModel* m_model;
     PlaybackManager* m_playbackManager;
+    MidiInManager* m_midiInManager;
+
     QMap<QSharedPointer<TrackData>, QPushButton*> m_trackQueuePbs;
-
     QByteArray m_playMidiControl;
-
-    int m_selectedDevice = -1;
-
-    RtAudio* m_rtAudio;
-
-    MidiManager* m_midiManager;
 };
 #endif // MAINWINDOW_H

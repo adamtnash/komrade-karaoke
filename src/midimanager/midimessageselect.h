@@ -2,7 +2,7 @@
 #define MIDIMESSAGESELECT_H
 
 #include <QWidget>
-#include "midimanager.h"
+#include "midiinmanager.h"
 
 namespace Ui {
 class MidiMessageSelect;
@@ -13,7 +13,7 @@ class MidiMessageSelect : public QWidget
     Q_OBJECT
 
 public:
-    explicit MidiMessageSelect(MidiManager* midiManager, QWidget *parent = nullptr);
+    explicit MidiMessageSelect(MidiInManager* midiManager, QWidget *parent = nullptr);
     ~MidiMessageSelect();
 
     void setMessage(QByteArray msg);

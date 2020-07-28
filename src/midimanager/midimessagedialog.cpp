@@ -1,7 +1,7 @@
 #include "midimessagedialog.h"
 #include "ui_midimessagedialog.h"
 
-MidiMessageDialog::MidiMessageDialog(MidiManager* midiManager, QWidget *parent) :
+MidiMessageDialog::MidiMessageDialog(MidiInManager* midiManager, QWidget *parent) :
     QDialog(parent),
     ui(new Ui::MidiMessageDialog),
     m_select(new MidiMessageSelect(midiManager, this))

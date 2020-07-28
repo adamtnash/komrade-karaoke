@@ -10,14 +10,14 @@
 #include "trackcomboboxdelegate.h"
 #include "midimessagedelegate.h"
 #include "midimessagedialog.h"
+#include <QMessageBox>
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent),
       ui(new Ui::MainWindow),
       m_model(nullptr),
-      m_playbackManager(new PlaybackManager()),
-      m_rtAudio(nullptr),
-      m_midiManager(new MidiManager(this))
+      m_playbackManager(new PlaybackManager(this)),
+      m_midiInManager(new MidiInManager(this))
 {
     ui->setupUi(this);
     this->setWindowTitle("Nata Beats");
@@ -26,17 +26,22 @@ MainWindow::MainWindow(QWidget *parent)
     ui->tv_tracks->setItemDelegateForColumn(4, trackDelegate);
     ui->tv_tracks->setItemDelegateForColumn(5, trackDelegate);
 
-    auto midiDelegate = new MidiMessageDelegate(m_midiManager, this);
+    auto midiDelegate = new MidiMessageDelegate(m_midiInManager, this);
     ui->tv_tracks->setItemDelegateForColumn(2, midiDelegate);
 
     ui->playbackLayout->addWidget(new PlaybackDisplay(m_playbackManager, this));
 
-    initAudioDevices();
+    connect(m_playbackManager, SIGNAL(opened()), this, SLOT(checkPlayback()), Qt::QueuedConnection);
+    connect(m_playbackManager, SIGNAL(closed()), this, SLOT(checkPlayback()), Qt::QueuedConnection);
+    connect(m_playbackManager, SIGNAL(started()), this, SLOT(playbackStarted()), Qt::QueuedConnection);
+    connect(m_playbackManager, SIGNAL(stopped()), this, SLOT(playbackStopped()), Qt::QueuedConnection);
+    checkPlayback();
 
     loadSettings();
+    initAudio();
+    initMidi();
 
-    m_midiManager->registerDeviceSelect(ui->cb_midiInput);
-    connect(m_midiManager, SIGNAL(midiRx(QByteArray)), this, SLOT(handleMidi(QByteArray)), Qt::QueuedConnection);
+    connect(m_midiInManager, SIGNAL(midiRx(QByteArray)), this, SLOT(handleMidi(QByteArray)), Qt::QueuedConnection);
 
     connect(m_playbackManager,
             SIGNAL(trackStarted(QString)),
@@ -44,11 +49,6 @@ MainWindow::MainWindow(QWidget *parent)
             SLOT(checkAutoQueue(QString)),
             Qt::QueuedConnection);
 
-    connect(m_playbackManager,
-            SIGNAL(playbackStopped()),
-            this,
-            SLOT(on_pb_togglePlay_clicked()),
-            Qt::QueuedConnection);
 }
 
 MainWindow::~MainWindow()
@@ -56,91 +56,16 @@ MainWindow::~MainWindow()
     Settings::write("windowSize", this->size(), "UI");
     Settings::write("windowPos", this->pos(), "UI");
     Settings::write("playMidiControl", m_playMidiControl, "Playback");
+    Settings::write("lastOutputDevice", m_playbackManager->currentDevice(), "Playback");
+    Settings::write("lastMidiPort", m_midiInManager->currentPort(), "MIDI");
 
-    if (m_model) {
-        m_model->writeDataToCache();
-    }
-
-    if (m_rtAudio) {
-        m_rtAudio->abortStream();
-        delete m_rtAudio;
+    if (!m_trackFolder.isNull()) {
+        m_trackFolder->writeToCache();
     }
 
     delete ui;
-    delete m_playbackManager;
 }
 
-void MainWindow::on_pb_togglePlay_clicked()
-{
-    if (m_rtAudio) {
-        try {
-            m_rtAudio->stopStream();
-        }
-        catch ( RtAudioError& e ) {
-            qDebug() << "\nError while stopping RtAudio stream:\n" << e.getMessage().c_str() << '\n';
-        }
-        delete m_rtAudio;
-        m_rtAudio = nullptr;
-        ui->pb_togglePlay->setText("Play");
-    }
-    else {
-        m_rtAudio = new RtAudio();
-        RtAudio::DeviceInfo info = m_rtAudio->getDeviceInfo(m_selectedDevice);
-
-        RtAudio::StreamParameters parameters;
-        parameters.deviceId = m_selectedDevice;
-        // stereo main and aux
-        if (info.outputChannels >= 4) {
-            parameters.nChannels = 4;
-            m_playbackManager->setOutChannels(4);
-        }
-        // just stereo main
-        else {
-            parameters.nChannels = 2;
-            m_playbackManager->setOutChannels(2);
-        }
-        unsigned int sampleRate = 44100;
-        unsigned int bufferFrames = 256; // 256 sample frames
-        RtAudio::StreamOptions options;
-        //options.flags = RTAUDIO_NONINTERLEAVED;
-
-        try {
-            m_rtAudio->openStream( &parameters, NULL, RTAUDIO_FLOAT32,
-                            sampleRate, &bufferFrames, &playbackCallback, m_playbackManager, &options );
-            m_rtAudio->startStream();
-            ui->pb_togglePlay->setText("Stop");
-        }
-        catch ( RtAudioError& e ) {
-            qDebug() << "\nError while starting RtAudio stream:\n" << e.getMessage().c_str() << '\n';
-            this->on_pb_togglePlay_clicked();
-        }
-    }
-}
-
-void MainWindow::selectAudioDeviceAt(int index)
-{
-    if (index >=0) {
-        if (ui->cb_audioOutput->currentIndex() != index) {
-            ui->cb_audioOutput->setCurrentIndex(index);
-        }
-        m_selectedDevice = ui->cb_audioOutput->itemData(index).toInt();
-        ui->pb_togglePlay->setEnabled(true);
-        Settings::write("lastOutputDevice", ui->cb_audioOutput->itemText(index), "Playback");
-    }
-    else {
-        m_selectedDevice = -1;
-        ui->pb_togglePlay->setEnabled(false);
-    }
-}
-
-void MainWindow::on_pb_backingTrackSelect_clicked()
-{
-    QString dirName = QFileDialog::getExistingDirectory(this, "Select Folder with Tracks");
-    if (dirName.isEmpty()) {
-        return;
-    }
-    setTrackFolder(dirName);
-}
 
 void MainWindow::loadSettings()
 {
@@ -162,43 +87,6 @@ void MainWindow::loadSettings()
     }
 }
 
-void MainWindow::initAudioDevices()
-{
-    disconnect(ui->cb_audioOutput, QOverload<int>::of(&QComboBox::currentIndexChanged),
-               this, &MainWindow::selectAudioDeviceAt);
-
-    ui->pb_togglePlay->setEnabled(false);
-    m_selectedDevice = 0;
-
-    ui->cb_audioOutput->clear();
-    RtAudio dac;
-    for (uint i = 0; i < dac.getDeviceCount(); i++) {
-        auto info = dac.getDeviceInfo(i);
-        if (info.probed) {
-            ui->cb_audioOutput->addItem(QString(info.name.c_str()), QVariant(i));
-        }
-    }
-
-    if (ui->cb_audioOutput->count() > 0) {
-        int currIdx = 0;
-        QVariant lastDevice = Settings::read("lastOutputDevice", "Playback");
-        if (!lastDevice.isNull()) {
-            int lastIdx = ui->cb_audioOutput->findText(lastDevice.toString());
-            if (lastIdx >= 0) {
-                currIdx = lastIdx;
-            }
-        }
-        this->selectAudioDeviceAt(currIdx);
-    }
-    else {
-        this->selectAudioDeviceAt(-1);
-    }
-
-    connect(ui->cb_audioOutput, QOverload<int>::of(&QComboBox::currentIndexChanged),
-            this, &MainWindow::selectAudioDeviceAt);
-}
-
-
 void MainWindow::setTrackFolder(QString dirName)
 {
     QDir dir(dirName);
@@ -210,13 +98,19 @@ void MainWindow::setTrackFolder(QString dirName)
     ui->le_backingTrack->setText(dirName);
     Settings::write("lastDir", dirName);
 
-    if (m_model) {
-        m_model->writeDataToCache();
+    if (!m_trackFolder.isNull()) {
+        m_trackFolder->writeToCache();
     }
 
-    m_model = new TrackFolderModel(dir, this);
-    connect(m_model, SIGNAL(initialized()), this, SLOT(adjustToTrackInitialization()));
+    m_trackFolder = TrackFolder::fromPath(dirName);
+    if (m_trackFolder.isNull()) {
+        reportError(QString("Failed to initialize track folder '%1'").arg(dirName));
+        return;
+    }
+    connect(m_trackFolder.data(), SIGNAL(updated()), this, SLOT(adjustToTrackInitialization()));
     adjustToTrackInitialization();
+
+    m_model = new TrackFolderModel(m_trackFolder, this);
 
     auto *oldSelectionModel = ui->tv_tracks->selectionModel();
     auto *oldModel = ui->tv_tracks->model();
@@ -234,21 +128,15 @@ void MainWindow::adjustToTrackInitialization()
     }
     m_trackQueuePbs.clear();
 
-    for (int row = 0; row < m_model->rowCount(); row++) {
-        auto trackData = m_model->getTrackData(row);
+    for (auto trackData : m_trackFolder->tracks()) {
         if (trackData.isNull()) {
             continue;
         }
         auto pb = new QPushButton(trackData->fileName());
-        pb->setCheckable(true);
-        pb->setAutoExclusive(true);
         ui->triggerLayout->layout()->addWidget(pb);
         m_trackQueuePbs.insert(trackData, pb);
 
-        connect(pb, &QPushButton::toggled, [this, trackData](bool checked) {
-            if (!checked) {
-                return;
-            }
+        connect(pb, &QPushButton::clicked, [this, trackData]() {
             this->queueTrack(trackData);
         });
     }
@@ -256,14 +144,14 @@ void MainWindow::adjustToTrackInitialization()
 
 void MainWindow::checkAutoQueue(QString trackFileName)
 {
-    auto track = m_model->getTrackData(trackFileName);
+    auto track = m_trackFolder->trackData(trackFileName);
     if (track.isNull()) {
         return;
     }
     if (track->autoQueueTrack().isEmpty()) {
         return;
     }
-    auto autoQueue = m_model->getTrackData(track->autoQueueTrack());
+    auto autoQueue = m_trackFolder->trackData(track->autoQueueTrack());
     if (autoQueue.isNull()) {
         return;
     }
@@ -274,34 +162,86 @@ void MainWindow::queueTrack(QSharedPointer<TrackData> track)
 {
     QSharedPointer<TrackData> auxTrack;
     if (!track->auxTrack().isEmpty()) {
-        auxTrack = m_model->getTrackData(track->auxTrack());
+        auxTrack = m_trackFolder->trackData(track->auxTrack());
     }
     this->m_playbackManager->setQueuedTrack(track, auxTrack);
 }
 
-int MainWindow::playbackCallback(void *outputBuffer, void *inputBuffer, unsigned int nFrames, double streamTime, RtAudioStreamStatus status, void *userData)
+void MainWindow::initAudio()
 {
-    PlaybackManager* playbackManager = static_cast<PlaybackManager*>(userData);
-    return playbackManager->writeNextAudioData(outputBuffer, nFrames);
+    disconnect(ui->cb_audioOutput, &QComboBox::currentTextChanged, this, &MainWindow::selectAudioDevice);
+    ui->cb_audioOutput->clear();
+    auto devices = m_playbackManager->pollDevices();
+    ui->cb_audioOutput->addItems(devices);
+
+    QString device;
+    if (devices.size() > 0) {
+        device = devices.at(0);
+    }
+
+    QVariant lastDevice = Settings::read("lastOutputDevice", "Playback");
+    if (!lastDevice.isNull() && devices.contains(lastDevice.toString())) {
+        device = lastDevice.toString();
+    }
+
+    if (!device.isEmpty()) {
+        selectAudioDevice(device);
+        ui->cb_audioOutput->setCurrentText(device);
+    }
+
+    connect(ui->cb_audioOutput, &QComboBox::currentTextChanged, this, &MainWindow::selectAudioDevice);
 }
 
-void MainWindow::playbackErrorCallback(RtAudioError::Type type, const std::string &errorText)
+void MainWindow::selectAudioDevice(QString deviceName)
 {
-    qDebug() << "\nError with RtAudio playback" << errorText.c_str() << '\n';
+    m_playbackManager->openDevice(deviceName);
 }
 
-void MainWindow::on_pb_showTracks_clicked()
+void MainWindow::checkPlayback()
 {
-    ui->scroll_trackButtons->setHidden(!ui->scroll_trackButtons->isHidden());
+    ui->pb_togglePlay->setText("Play");
+    ui->pb_togglePlay->setEnabled(!m_playbackManager->currentDevice().isEmpty());
 }
 
-void MainWindow::on_pb_configurePlayback_clicked()
+void MainWindow::playbackStarted()
 {
-    MidiMessageDialog * dialog = new MidiMessageDialog(m_midiManager, this);
-    dialog->setMessage(m_playMidiControl);
-    dialog->setWindowTitle("Playback MIDI Control");
-    if (dialog->exec()) {
-        m_playMidiControl = dialog->getMessage();
+    ui->pb_togglePlay->setText("Stop");
+}
+
+void MainWindow::playbackStopped()
+{
+    ui->pb_togglePlay->setText("Play");
+}
+
+void MainWindow::initMidi()
+{
+    disconnect(ui->cb_midiInput, &QComboBox::currentTextChanged, this, &MainWindow::selectMidiPort);
+    ui->cb_midiInput->clear();
+    auto ports = m_midiInManager->pollPorts();
+    ui->cb_midiInput->addItems(ports);
+
+    QString port;
+    if (ports.size() > 0) {
+        port = ports.at(0);
+    }
+
+    QVariant lastPort = Settings::read("lastMidiPort", "MIDI");
+    if (!lastPort.isNull() && ports.contains(lastPort.toString())) {
+        port = lastPort.toString();
+    }
+
+    if (!port.isEmpty()) {
+        selectMidiPort(port);
+        ui->cb_midiInput->setCurrentText(port);
+    }
+
+    connect(ui->cb_midiInput, &QComboBox::currentTextChanged, this, &MainWindow::selectMidiPort);
+}
+
+void MainWindow::selectMidiPort(QString portName)
+{
+    if (!m_midiInManager->openPort(portName)) {
+        reportError(QString("Failed to open MIDI port '%1'").arg(portName), "MIDI Error");
     }
 }
 
@@ -315,14 +255,54 @@ void MainWindow::handleMidi(QByteArray message)
         this->on_pb_togglePlay_clicked();
     }
     else {
-        for (int row = 0; row < m_model->rowCount(); row++) {
-            auto trackData = m_model->getTrackData(row);
-            if (trackData.isNull()) {
-                continue;
-            }
-            if (message == trackData->midiTrigger()) {
-                this->queueTrack(trackData);
-            }
+        auto track = m_trackFolder->trackByMidiTrigger(message);
+        if (!track.isNull()) {
+            this->queueTrack(track);
         }
     }
+}
+
+void MainWindow::reportError(QString errorText, QString title)
+{
+    QMessageBox::warning(this, title, errorText);
+}
+
+void MainWindow::on_pb_togglePlay_clicked()
+{
+    if (m_playbackManager->isRunning()) {
+        m_playbackManager->stop();
+    }
+    else {
+        m_playbackManager->start();
+    }
+}
+
+void MainWindow::on_pb_showTracks_clicked()
+{
+    ui->scroll_trackButtons->setHidden(!ui->scroll_trackButtons->isHidden());
+}
+
+void MainWindow::on_pb_configurePlayback_clicked()
+{
+    MidiMessageDialog * dialog = new MidiMessageDialog(m_midiInManager, this);
+    dialog->setMessage(m_playMidiControl);
+    dialog->setWindowTitle("Playback MIDI Control");
+    if (dialog->exec()) {
+        m_playMidiControl = dialog->getMessage();
+    }
+}
+
+void MainWindow::on_pb_backingTrackSelect_clicked()
+{
+    QString dirName = QFileDialog::getExistingDirectory(this, "Select Folder with Tracks");
+    if (dirName.isEmpty()) {
+        return;
+    }
+    setTrackFolder(dirName);
+}
+
+static float slideMax = float(100 * 100);
+void MainWindow::on_hs_volume_valueChanged(int value)
+{
+    m_playbackManager->setVolume(float(value * value)/slideMax);
 }

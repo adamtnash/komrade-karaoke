@@ -2,7 +2,12 @@ TEMPLATE = subdirs
 
 SUBDIRS += \
     nata-beats-gui \
-    libs/rtmidi \
-    libs/rtaudio
+    extern/rtmidi \
+    extern/rtaudio \
+    audiomanager \
+    midimanager \
+    trackdata
 
-nata-beats-gui.depends = libs/rtaudio libs/rtmidi
+audiomanager.depends = extern/rtaudio trackdata
+midimanager.depends = extern/rtmidi
+nata-beats-gui.depends = trackdata audiomanager midimanager

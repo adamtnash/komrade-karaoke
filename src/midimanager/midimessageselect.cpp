@@ -1,7 +1,7 @@
 #include "midimessageselect.h"
 #include "ui_midimessageselect.h"
 
-MidiMessageSelect::MidiMessageSelect(MidiManager* midiManager, QWidget *parent) :
+MidiMessageSelect::MidiMessageSelect(MidiInManager* midiManager, QWidget *parent) :
     QWidget(parent),
     ui(new Ui::MidiMessageSelect)
 {
@@ -11,12 +11,8 @@ MidiMessageSelect::MidiMessageSelect(MidiManager* midiManager, QWidget *parent) 
         ui->lb_msg->setText(QByteArray());
     });
 
-    auto conn = connect(midiManager, &MidiManager::midiRx, [this](QByteArray message) {
+    auto conn = connect(midiManager, &MidiInManager::midiRx, this, [this](QByteArray message) {
         setMessage(message);
-    });
-
-    connect(this, &QObject::destroyed, [conn](){
-        disconnect(conn);
     });
 }
 

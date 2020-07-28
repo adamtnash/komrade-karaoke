@@ -4,12 +4,27 @@
 #include <QObject>
 #include "trackdata.h"
 #include <QMutex>
+#include "RtAudio.h"
+#include <QHash>
 
 class PlaybackManager : public QObject
 {
     Q_OBJECT
 public:
     PlaybackManager(QObject* parent = nullptr);
+    ~PlaybackManager();
+
+    QStringList pollDevices();
+    QStringList getDevices();
+    QString currentDevice() const;
+    bool openDevice(const QString &deviceName);
+
+    void close();
+    void start();
+    void stop();
+    void abort();
+
+    bool isRunning();
 
     int writeNextAudioData(void *outputBuffer, unsigned int nFrames);
 
@@ -25,9 +40,17 @@ public:
     bool trackOk(QSharedPointer<TrackData> track);
 
 signals:
-    void playbackChanged();
-    void playbackStopped();
+    void opened();
+    void closed();
+    void started();
+    void stopped();
+    void queueChanged();
     void trackStarted(QString);
+
+    void reportError(QString);
+
+public slots:
+    void setVolume(float volume);
 
 private:
     void checkQueue();
@@ -40,6 +63,14 @@ private:
     int m_activeSample;
     int m_outChannels;
     QMutex m_mutex;
+
+    RtAudio* m_audio;
+    QString m_currentDevice;
+
+    float m_volume;
+
+    bool m_deviceCacheDirty;
+    QList<RtAudio::DeviceInfo> m_deviceCache;
 };
 
 #endif // PLAYBACKMANAGER_H

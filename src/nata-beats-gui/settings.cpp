@@ -8,7 +8,7 @@ Settings::Settings()
 
 QVariant Settings::read(QString key, QString group)
 {
-    QSettings settings("SMandR", "Nata Beats");
+    QSettings settings("Nata Beats");
     settings.beginGroup(group);
     auto val = settings.value(key);
     settings.endGroup();
@@ -17,7 +17,7 @@ QVariant Settings::read(QString key, QString group)
 
 void Settings::write(QString key, QVariant value, QString group)
 {
-    QSettings settings("SMandR", "Nata Beats");
+    QSettings settings("Nata Beats");
     settings.beginGroup(group);
     settings.setValue(key, value);
     settings.endGroup();

@@ -2,7 +2,7 @@
 #include "midimessageselect.h"
 
 
-MidiMessageDelegate::MidiMessageDelegate(MidiManager* midiManager, QObject *parent) :
+MidiMessageDelegate::MidiMessageDelegate(MidiInManager* midiManager, QObject *parent) :
     QStyledItemDelegate(parent),
     m_midiManager(midiManager)
 {

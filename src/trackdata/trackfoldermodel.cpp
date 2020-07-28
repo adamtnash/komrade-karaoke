@@ -1,45 +1,12 @@
 #include "trackfoldermodel.h"
 #include <QDebug>
 #include <QPainter>
-#include "trackdatacache.h"
 
-TrackFolderModel::TrackFolderModel(QDir trackFolder, QObject *parent)
+TrackFolderModel::TrackFolderModel(QSharedPointer<TrackFolder> trackFolder, QObject *parent)
     : QAbstractTableModel(parent),
       m_trackFolder(trackFolder)
 {
-    m_trackWatcher = new QFileSystemWatcher({m_trackFolder.path()}, this);
-    initTrackData();
-}
-
-void TrackFolderModel::initTrackData()
-{
-    // Disconnect watcher so that cache writes don't trigger another init
-    disconnect(m_trackWatcher,
-            SIGNAL(directoryChanged(QString)),
-            this,
-            SLOT(initTrackData()));
-
-    beginResetModel();
-    m_trackDataMap.clear();
-    m_tracks = m_trackFolder.entryList({"*.wav"}, QDir::Files, QDir::Name);
-
-    for (auto track : m_tracks) {
-        if (!m_trackDataMap.contains(track)) {
-            auto data = TrackData::fromFileName(m_trackFolder.filePath(track));
-            if (data.isNull()) {
-                continue;
-            }
-            m_trackDataMap.insert(track, data);
-        }
-    }
-    endResetModel();
-
-    connect(m_trackWatcher,
-            SIGNAL(directoryChanged(QString)),
-            this,
-            SLOT(initTrackData()));
-
-    emit initialized();
+    connect(trackFolder.data(), &TrackFolder::updated, this, &TrackFolderModel::fullReset);
 }
 
 QVariant TrackFolderModel::headerData(int section, Qt::Orientation orientation, int role) const
@@ -78,7 +45,7 @@ int TrackFolderModel::rowCount(const QModelIndex &parent) const
     if (parent.isValid())
         return 0;
 
-    return m_tracks.size();
+    return m_trackFolder->trackNames().size();
 }
 
 int TrackFolderModel::columnCount(const QModelIndex &parent) const
@@ -94,12 +61,12 @@ QVariant TrackFolderModel::data(const QModelIndex &index, int role) const
     if (!index.isValid())
         return QVariant();
 
-    auto tracks = m_tracks;
+    auto tracks = m_trackFolder->trackNames();
     if (index.row() >= tracks.size()) {
         return QVariant();
     }
     auto track = tracks.at(index.row());
-    auto trackData = m_trackDataMap.value(track);
+    auto trackData = m_trackFolder->trackData(track);
 
     if (role == Qt::DisplayRole) {
         if (index.column() == 0) {
@@ -164,12 +131,12 @@ bool TrackFolderModel::setData(const QModelIndex &index, const QVariant &value, 
 
     if (data(index, role) != value) {
 
-        auto tracks = m_tracks;
+        auto tracks = m_trackFolder->trackNames();
         if (index.row() >= tracks.size()) {
             return false;
         }
         auto track = tracks.at(index.row());
-        auto trackData = m_trackDataMap.value(track);
+        auto trackData = m_trackFolder->trackData(track);
 
         if (role == Qt::EditRole) {
             if (index.column() == 1) {
@@ -216,23 +183,21 @@ Qt::ItemFlags TrackFolderModel::flags(const QModelIndex &index) const
 
 QSharedPointer<TrackData> TrackFolderModel::getTrackData(int row)
 {
-    if (row < 0 || row >= m_tracks.size()) {
+    if (row < 0 || row >= m_trackFolder->trackNames().size()) {
         return QSharedPointer<TrackData>();
     }
 
-    auto track = m_tracks.at(row);
-    return m_trackDataMap.value(track);
+    auto track = m_trackFolder->trackNames().at(row);
+    return m_trackFolder->trackData(track);
 }
 
 QSharedPointer<TrackData> TrackFolderModel::getTrackData(QString fileName)
 {
-    return m_trackDataMap.value(fileName);
+    return m_trackFolder->trackData(fileName);
 }
 
-void TrackFolderModel::writeDataToCache()
+void TrackFolderModel::fullReset()
 {
-    for (auto track : m_trackDataMap.values()) {
-        TrackDataCache cache(m_trackFolder.filePath(track->fileName()));
-        cache.write(track);
-    }
+    beginResetModel();
+    endResetModel();
 }
