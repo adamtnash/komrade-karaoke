@@ -22,6 +22,7 @@ void TrackFolderModel::initTrackData()
     beginResetModel();
     m_trackDataMap.clear();
     m_tracks = m_trackFolder.entryList({"*.wav"}, QDir::Files, QDir::Name);
+
     for (auto track : m_tracks) {
         if (!m_trackDataMap.contains(track)) {
             auto data = TrackData::fromFileName(m_trackFolder.filePath(track));
