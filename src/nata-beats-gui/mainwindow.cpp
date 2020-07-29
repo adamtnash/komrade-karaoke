@@ -16,18 +16,24 @@ MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent),
       ui(new Ui::MainWindow),
       m_model(nullptr),
-      m_playbackManager(new PlaybackManager(this)),
+      m_playbackManager(new PlaybackManager()),
       m_midiInManager(new MidiInManager(this))
 {
     ui->setupUi(this);
     this->setWindowTitle("Nata Beats");
 
-    auto trackDelegate = new TrackComboBoxDelegate(this);
-    ui->tv_tracks->setItemDelegateForColumn(4, trackDelegate);
-    ui->tv_tracks->setItemDelegateForColumn(5, trackDelegate);
+    auto trackDelegate = new TrackComboBoxDelegate(this, [](QSharedPointer<TrackData> trackData) {
+        return !trackData->isAux();
+    });
+    ui->tv_tracks->setItemDelegateForColumn(TrackFolderModel::AUTO_QUEUE_COL, trackDelegate);
+
+    auto auxTrackDelegate = new TrackComboBoxDelegate(this, [](QSharedPointer<TrackData> trackData) {
+            return trackData->isAux();
+        });
+    ui->tv_tracks->setItemDelegateForColumn(TrackFolderModel::AUX_TRACK_COL, auxTrackDelegate);
 
     auto midiDelegate = new MidiMessageDelegate(m_midiInManager, this);
-    ui->tv_tracks->setItemDelegateForColumn(2, midiDelegate);
+    ui->tv_tracks->setItemDelegateForColumn(TrackFolderModel::MIDI_COL, midiDelegate);
 
     ui->playbackLayout->addWidget(new PlaybackDisplay(m_playbackManager, this));
 
@@ -62,6 +68,9 @@ MainWindow::~MainWindow()
     if (!m_trackFolder.isNull()) {
         m_trackFolder->writeToCache();
     }
+
+    m_playbackManager->close();
+    delete m_playbackManager;
 
     delete ui;
 }

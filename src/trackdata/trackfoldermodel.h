@@ -31,6 +31,19 @@ public:
     QSharedPointer<TrackData> getTrackData(int row);
     QSharedPointer<TrackData> getTrackData(QString fileName);
 
+    static const int NAME_COL;
+    static const int BPM_COL;
+    static const int MIDI_COL;
+    static const int COLOR_COL;
+    static const int AUX_TRACK_COL;
+    static const int AUTO_QUEUE_COL;
+    static const int AUTO_STOP_COL;
+    static const int AUTO_PLAY_COL;
+    static const int IS_AUX_COL;
+    static const int WAVEFORM_COL;
+
+    static const int COL_COUNT;
+
 signals:
     void initialized();
 

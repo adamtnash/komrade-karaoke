@@ -2,6 +2,29 @@
 #include <QDebug>
 #include <QPainter>
 
+const int TrackFolderModel::NAME_COL = 0;
+const int TrackFolderModel::BPM_COL = -1;
+const int TrackFolderModel::MIDI_COL = 1;
+const int TrackFolderModel::COLOR_COL = -1;
+const int TrackFolderModel::AUX_TRACK_COL = 2;
+const int TrackFolderModel::AUTO_QUEUE_COL = 3;
+const int TrackFolderModel::AUTO_STOP_COL = 6;
+const int TrackFolderModel::AUTO_PLAY_COL = 5;
+const int TrackFolderModel::IS_AUX_COL = 4;
+const int TrackFolderModel::WAVEFORM_COL = 7;
+
+const int TrackFolderModel::COL_COUNT = 8;
+
+const QSet<int> EDITABLE_COLS = {
+    TrackFolderModel::BPM_COL,
+    TrackFolderModel::MIDI_COL,
+    TrackFolderModel::AUX_TRACK_COL,
+    TrackFolderModel::AUTO_QUEUE_COL,
+    TrackFolderModel::AUTO_STOP_COL,
+    TrackFolderModel::AUTO_PLAY_COL,
+    TrackFolderModel::IS_AUX_COL
+};
+
 TrackFolderModel::TrackFolderModel(QSharedPointer<TrackFolder> trackFolder, QObject *parent)
     : QAbstractTableModel(parent),
       m_trackFolder(trackFolder)
@@ -16,23 +39,29 @@ QVariant TrackFolderModel::headerData(int section, Qt::Orientation orientation, 
     }
 
     if (role == Qt::DisplayRole) {
-        if (section == 0) {
+        if (section == NAME_COL) {
             return "Track Name";
         }
-        else if (section == 1) {
+        else if (section == BPM_COL) {
             return "BPM";
         }
-        else if (section == 2) {
+        else if (section == MIDI_COL) {
             return "MIDI Trigger";
         }
-        else if (section == 3) {
-            return "";
-        }
-        else if (section == 4) {
+        else if (section == AUTO_QUEUE_COL) {
             return "Auto-Queue";
         }
-        else if (section == 5) {
+        else if (section == AUX_TRACK_COL) {
+            return "Aux Track";
+        }
+        else if (section == IS_AUX_COL) {
             return "Aux";
+        }
+        else if (section == AUTO_STOP_COL) {
+            return "Auto Stop";
+        }
+        else if (section == AUTO_PLAY_COL) {
+            return "Auto Play";
         }
     }
 
@@ -53,7 +82,7 @@ int TrackFolderModel::columnCount(const QModelIndex &parent) const
     if (parent.isValid())
         return 0;
 
-    return 6;
+    return COL_COUNT;
 }
 
 QVariant TrackFolderModel::data(const QModelIndex &index, int role) const
@@ -68,52 +97,59 @@ QVariant TrackFolderModel::data(const QModelIndex &index, int role) const
     auto track = tracks.at(index.row());
     auto trackData = m_trackFolder->trackData(track);
 
-    if (role == Qt::DisplayRole) {
-        if (index.column() == 0) {
+    if (role == Qt::DisplayRole || role == Qt::EditRole) {
+        if (index.column() == NAME_COL) {
             return track;
         }
-        else if (index.column() == 1) {
+        else if (index.column() == BPM_COL) {
             return trackData->bpm();
         }
-        else if (index.column() == 2) {
+        else if (index.column() == MIDI_COL) {
             return trackData->midiTrigger().toHex();
         }
-        else if (index.column() == 3) {
+        else if (index.column() == WAVEFORM_COL) {
             return trackData->waveform();
         }
-        else if (index.column() == 4) {
+        else if (index.column() == AUTO_QUEUE_COL) {
             return trackData->autoQueueTrack();
         }
-        else if (index.column() == 5) {
+        else if (index.column() == AUX_TRACK_COL) {
             return trackData->auxTrack();
         }
-    }
-    else if (role == Qt::EditRole) {
-        if (index.column() == 1) {
-            return trackData->bpm();
+        else if (index.column() == IS_AUX_COL) {
+            return trackData->isAux();
         }
-        else if (index.column() == 2) {
-            return trackData->midiTrigger();
+        else if (index.column() == AUTO_PLAY_COL) {
+            return trackData->autoPlay();
         }
-        else if (index.column() == 4) {
-            return trackData->autoQueueTrack();
-        }
-        else if (index.column() == 5) {
-            return trackData->auxTrack();
+        else if (index.column() == AUTO_STOP_COL) {
+            return trackData->autoStop();
         }
     }
     else if (role == Qt::DecorationRole) {
-        if (index.column() == 3) {
+        if (index.column() == WAVEFORM_COL) {
             return trackData->waveformPreview();
         }
     }
     else if (role == Qt::SizeHintRole) {
-        if (index.column() == 3) {
+        if (index.column() == WAVEFORM_COL) {
             return trackData->waveformPreview().size();
         }
     }
     else if (role == Qt::BackgroundRole) {
-        return trackData->baseColor();
+        if (index.column() == AUTO_QUEUE_COL) {
+            auto queueTrackData = m_trackFolder->trackData(trackData->autoQueueTrack());
+            if (!queueTrackData.isNull()) {
+                return queueTrackData->baseColor().lighter(120);
+            }
+        }
+        else if (index.column() == AUX_TRACK_COL) {
+            auto auxTrackData = m_trackFolder->trackData(trackData->auxTrack());
+            if (!auxTrackData.isNull()) {
+                return auxTrackData->baseColor().lighter(120);
+            }
+        }
+        return trackData->baseColor().lighter(120);
     }
 
     return QVariant();
@@ -121,16 +157,11 @@ QVariant TrackFolderModel::data(const QModelIndex &index, int role) const
 
 bool TrackFolderModel::setData(const QModelIndex &index, const QVariant &value, int role)
 {
-
-    if (!(index.column() == 1
-             || index.column() == 2
-             || index.column() == 4
-             || index.column() == 5 )) {
+    if (!EDITABLE_COLS.contains(index.column())) {
         return false;
     }
 
     if (data(index, role) != value) {
-
         auto tracks = m_trackFolder->trackNames();
         if (index.row() >= tracks.size()) {
             return false;
@@ -139,23 +170,38 @@ bool TrackFolderModel::setData(const QModelIndex &index, const QVariant &value, 
         auto trackData = m_trackFolder->trackData(track);
 
         if (role == Qt::EditRole) {
-            if (index.column() == 1) {
+            if (index.column() == BPM_COL) {
                 trackData->setBpm(value.toDouble());
                 emit dataChanged(index, index, {role, Qt::DisplayRole});
                 return true;
             }
-            else if (index.column() == 2) {
+            else if (index.column() == MIDI_COL) {
                 trackData->setMidiTrigger(value.toByteArray());
                 emit dataChanged(index, index, {role, Qt::DisplayRole});
                 return true;
             }
-            else if (index.column() == 4) {
+            else if (index.column() == AUTO_QUEUE_COL) {
                 trackData->setAutoQueueTrack(value.toString());
                 emit dataChanged(index, index, {role, Qt::DisplayRole});
                 return true;
             }
-            else if (index.column() == 5) {
+            else if (index.column() == AUX_TRACK_COL) {
                 trackData->setAuxTrack(value.toString());
+                emit dataChanged(index, index, {role, Qt::DisplayRole});
+                return true;
+            }
+            else if (index.column() == IS_AUX_COL) {
+                trackData->setIsAux(value.toBool());
+                emit dataChanged(index, index, {role, Qt::DisplayRole});
+                return true;
+            }
+            else if (index.column() == AUTO_PLAY_COL) {
+                trackData->setAutoPlay(value.toBool());
+                emit dataChanged(index, index, {role, Qt::DisplayRole});
+                return true;
+            }
+            else if (index.column() == AUTO_STOP_COL) {
+                trackData->setAutoStop(value.toBool());
                 emit dataChanged(index, index, {role, Qt::DisplayRole});
                 return true;
             }
@@ -171,10 +217,7 @@ Qt::ItemFlags TrackFolderModel::flags(const QModelIndex &index) const
 
     Qt::ItemFlags flags = Qt::ItemIsEnabled | Qt::ItemIsSelectable;
 
-    if (index.column() == 1
-            || index.column() == 2
-            || index.column() == 4
-            || index.column() == 5) {
+    if (EDITABLE_COLS.contains(index.column())) {
         flags |= Qt::ItemIsEditable;
     }
 

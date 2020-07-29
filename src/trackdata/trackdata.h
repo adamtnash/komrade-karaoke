@@ -37,6 +37,15 @@ public:
     QString auxTrack() const;
     void setAuxTrack(const QString &auxTrack);
 
+    bool autoStop() const;
+    void setAutoStop(bool autoStop);
+
+    bool autoPlay() const;
+    void setAutoPlay(bool autoPlay);
+
+    bool isAux() const;
+    void setIsAux(bool isAux);
+
     friend QDataStream& operator<<(QDataStream&, const TrackData&);
     friend QDataStream& operator>>(QDataStream&, TrackData&);
 
@@ -54,6 +63,10 @@ private:
 
     QString m_autoQueueTrack;
     QString m_auxTrack;
+
+    bool m_autoStop;
+    bool m_autoPlay;
+    bool m_isAux;
 
     friend class TrackDataCache;
 };

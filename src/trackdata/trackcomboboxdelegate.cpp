@@ -2,8 +2,10 @@
 #include <QComboBox>
 #include "trackfoldermodel.h"
 
-TrackComboBoxDelegate::TrackComboBoxDelegate(QObject *parent) :
-    QStyledItemDelegate(parent)
+TrackComboBoxDelegate::TrackComboBoxDelegate(QObject *parent,
+                                             std::function<bool(QSharedPointer<TrackData>)> filter) :
+    QStyledItemDelegate(parent),
+    m_filter(filter)
 {
 
 }
@@ -14,7 +16,10 @@ QWidget *TrackComboBoxDelegate::createEditor(QWidget *parent, const QStyleOption
     auto model = (TrackFolderModel*)index.model();
     cb->addItem("< No Track >", QString());
     for (int row = 0; row < model->rowCount(); row++) {
-        cb->addItem(model->getTrackData(row)->fileName(), model->getTrackData(row)->fileName());
+        auto trackData = model->getTrackData(row);
+        if (m_filter(trackData)) {
+            cb->addItem(trackData->fileName(), trackData->fileName());
+        }
     }
     return cb;
 }

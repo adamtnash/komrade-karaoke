@@ -21,6 +21,9 @@ QSharedPointer<TrackData> TrackData::fromFileName(QString fileName)
     data->m_bpm = 120;
     data->m_midiTrigger = QByteArray();
     data->m_buffer = AudioFileBuffer::fromWavFile(fileName);
+    data->m_isAux = false;
+    data->m_autoPlay = false;
+    data->m_autoStop = false;
 
     data->m_baseColor = QColor::fromHsl(hue, 0x44, 0xbb);
     hue = (hue + 20) % 255;
@@ -83,6 +86,36 @@ void TrackData::renderWaveforms()
     prePaint.drawImage(preview.rect(), pix.toImage(), pix.rect());
 
     m_waveformPreview = preview;
+}
+
+bool TrackData::isAux() const
+{
+    return m_isAux;
+}
+
+void TrackData::setIsAux(bool isAux)
+{
+    m_isAux = isAux;
+}
+
+bool TrackData::autoPlay() const
+{
+    return m_autoPlay;
+}
+
+void TrackData::setAutoPlay(bool autoPlay)
+{
+    m_autoPlay = autoPlay;
+}
+
+bool TrackData::autoStop() const
+{
+    return m_autoStop;
+}
+
+void TrackData::setAutoStop(bool autoStop)
+{
+    m_autoStop = autoStop;
 }
 
 QColor TrackData::baseColor() const
@@ -181,6 +214,9 @@ QDataStream &operator<<(QDataStream & out, const TrackData &data)
     out << data.baseColor();
     out << data.auxTrack();
     out << data.autoQueueTrack();
+    out << data.autoStop();
+    out << data.autoPlay();
+    out << data.isAux();
     out << data.waveform();
     out << data.waveformPreview();
     out << *(data.buffer().data());
@@ -199,6 +235,9 @@ QDataStream &operator>>(QDataStream &in, TrackData &data)
         in >> data.m_baseColor;
         in >> data.m_auxTrack;
         in >> data.m_autoQueueTrack;
+        in >> data.m_autoStop;
+        in >> data.m_autoPlay;
+        in >> data.m_isAux;
         in >> data.m_waveform;
         in >> data.m_waveformPreview;
         data.m_buffer = AudioFileBuffer::fromDataStream(in);

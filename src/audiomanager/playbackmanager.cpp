@@ -9,6 +9,11 @@ PlaybackManager::PlaybackManager(QObject* parent) :
     m_outChannels(2),
     m_audio(new RtAudio()),
     m_volume(1.0),
+    m_fadeOutSamples(0),
+    m_currFadeOut(0),
+    m_fadeOutStarted(0),
+    m_fadeInSamples(0),
+    m_currFadeIn(0),
     m_deviceCacheDirty(true)
 {
 
@@ -16,7 +21,7 @@ PlaybackManager::PlaybackManager(QObject* parent) :
 
 PlaybackManager::~PlaybackManager()
 {
-    m_audio->abortStream();
+    close();
     delete m_audio;
 }
 
@@ -36,6 +41,7 @@ QStringList PlaybackManager::getDevices()
                 m_deviceCache.append(info);
             }
         }
+        m_deviceCacheDirty = false;
     }
     QStringList devices;
     for (auto device : m_deviceCache) {
@@ -62,7 +68,7 @@ bool PlaybackManager::openDevice(const QString &deviceName)
         reportError(QString("Requested audio device is not available: %1").arg(deviceName));
         return false;
     }
-    RtAudio::DeviceInfo info = m_audio->getDeviceInfo(idx);
+    RtAudio::DeviceInfo info = m_deviceCache.at(idx);
 
     RtAudio::StreamParameters parameters;
     parameters.deviceId = idx;
@@ -102,9 +108,11 @@ void PlaybackManager::close()
     }
 }
 
-void PlaybackManager::start()
+void PlaybackManager::start(int fadeInSamples)
 {
     if (m_audio->isStreamOpen() && !m_audio->isStreamRunning()) {
+        m_fadeInSamples = fadeInSamples;
+        m_currFadeIn = 0;
         try {
             m_audio->startStream();
             emit started();
@@ -115,11 +123,20 @@ void PlaybackManager::start()
     }
 }
 
-void PlaybackManager::stop()
+void PlaybackManager::stop(int fadeOutSamples)
 {
     if (m_audio->isStreamOpen() && m_audio->isStreamRunning()) {
-        m_audio->stopStream();
-        emit stopped();
+        if (m_fadeOutStarted == 0) {
+            m_fadeOutStarted = 1;
+            m_fadeOutSamples = fadeOutSamples;
+            m_currFadeOut = 0;
+
+            if (fadeOutSamples == 0) {
+                m_fadeOutStarted = 0;
+                m_audio->stopStream();
+                emit stopped();
+            }
+        }
     }
 }
 
@@ -147,6 +164,10 @@ void PlaybackManager::setQueuedTrack(QSharedPointer<TrackData> queuedTrack, QSha
     m_queuedTrack = queuedTrack;
     m_queuedAuxTrack = auxTrack;
     m_mutex.unlock();
+
+    if (!m_queuedTrack.isNull() && m_queuedTrack->autoPlay()) {
+        start();
+    }
 
     emit queueChanged();
 }
@@ -208,49 +229,81 @@ int PlaybackManager::writeNextAudioData(void *outputBuffer, unsigned int nFrames
     }
 
     if (!trackOk(m_activeTrack)) {
-        emit stopped();
-        return 1;
+        return endPlayback();
     }
 
-    bool auxPlayback = m_outChannels == 4 &&  trackOk(m_activeAuxTrack);
+    bool auxPlayback = m_outChannels == 4 && trackOk(m_activeAuxTrack);
 
     for (unsigned int i = 0; i < nFrames; i++) {
-        if (m_activeSample + 1 > m_activeTrack->buffer()->floatData().size()) {
+        int sample = m_activeSample;
+        if (m_fadeOutStarted == 1) {
+            sample += (m_currFadeOut * m_activeTrack->buffer()->numChannels());
+        }
+        if (sample + 1 > m_activeTrack->buffer()->floatData().size()) {
             m_activeSample = 0;
+            sample = m_activeSample;
             checkQueue();
             if (!trackOk(m_activeTrack)) {
-                emit stopped();
-                return 1;
+                return endPlayback();
+            }
+            else if (!m_activeTrack.isNull() && m_activeTrack->autoStop()) {
+                return endPlayback();
             }
             auxPlayback = m_outChannels == 4 && trackOk(m_activeAuxTrack);
         }
 
-        out[i*m_outChannels] = m_activeTrack->buffer()->floatData().at(m_activeSample) * m_volume;
+        float volume = m_volume;
+        if (m_currFadeIn < m_fadeInSamples) {
+            m_currFadeIn++;
+            volume *= float(m_currFadeIn * m_currFadeIn) / float(m_fadeInSamples * m_fadeInSamples);
+        }
+        if (m_fadeOutStarted == 1) {
+            if (m_currFadeOut < m_fadeOutSamples) {
+                m_currFadeOut++;
+                float reduction = float(m_currFadeOut * m_currFadeOut) / float(m_fadeOutSamples * m_fadeOutSamples);
+                volume *= (1.0f - reduction);
+            }
+            else {
+                return endPlayback();
+            }
+        }
+
+        out[i*m_outChannels] = m_activeTrack->buffer()->floatData().at(sample) * volume;
         if (m_activeTrack->buffer()->numChannels() < 2) {
             out[i*m_outChannels + 1] = out[i*m_outChannels];
         }
         else {
-            out[i*m_outChannels + 1] = m_activeTrack->buffer()->floatData().at(m_activeSample+1) * m_volume;
+            out[i*m_outChannels + 1] = m_activeTrack->buffer()->floatData().at(sample+1) * volume;
         }
-
         // Aux output
         if (auxPlayback) {
-            int auxSample = m_activeSample / m_activeTrack->buffer()->numChannels();
+            int auxSample = sample / m_activeTrack->buffer()->numChannels();
             auxSample *= m_activeAuxTrack->buffer()->numChannels();
             auxSample %= m_activeAuxTrack->buffer()->floatData().size();
-            out[i*m_outChannels + 2] = m_activeAuxTrack->buffer()->floatData().at(auxSample) * m_volume;
+            out[i*m_outChannels + 2] = m_activeAuxTrack->buffer()->floatData().at(auxSample) * volume;
             if (m_activeAuxTrack->buffer()->numChannels() < 2) {
                 out[i*m_outChannels + 3] = out[i * m_outChannels + 2];
             }
             else {
-                out[i*m_outChannels + 3] = m_activeAuxTrack->buffer()->floatData().at(auxSample + 1) * m_volume;
+                out[i*m_outChannels + 3] = m_activeAuxTrack->buffer()->floatData().at(auxSample + 1) * volume;
             }
         }
 
-        m_activeSample += m_activeTrack->buffer()->numChannels();
+        if (m_fadeOutStarted != 1) {
+            m_activeSample += m_activeTrack->buffer()->numChannels();
+        }
     }
 
     return 0;
+}
+
+int PlaybackManager::endPlayback()
+{
+    m_fadeOutStarted = 0;
+    m_fadeOutSamples = 0;
+    m_currFadeOut = 0;
+    emit stopped();
+    return 1;
 }
 
 int playbackCallback(void *outputBuffer, void *inputBuffer, unsigned int nFrames, double streamTime, RtAudioStreamStatus status, void *userData)

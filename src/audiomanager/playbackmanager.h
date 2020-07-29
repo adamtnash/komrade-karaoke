@@ -6,6 +6,7 @@
 #include <QMutex>
 #include "RtAudio.h"
 #include <QHash>
+#include <QAtomicInt>
 
 class PlaybackManager : public QObject
 {
@@ -20,8 +21,8 @@ public:
     bool openDevice(const QString &deviceName);
 
     void close();
-    void start();
-    void stop();
+    void start(int fadeInSamples = 100);
+    void stop(int fadeOutSamples = 1000);
     void abort();
 
     bool isRunning();
@@ -51,6 +52,7 @@ signals:
 
 public slots:
     void setVolume(float volume);
+    int endPlayback();
 
 private:
     void checkQueue();
@@ -68,6 +70,13 @@ private:
     QString m_currentDevice;
 
     float m_volume;
+
+    QAtomicInt m_fadeOutSamples;
+    QAtomicInt m_currFadeOut;
+    QAtomicInt m_fadeOutStarted;
+
+    QAtomicInt m_fadeInSamples;
+    QAtomicInt m_currFadeIn;
 
     bool m_deviceCacheDirty;
     QList<RtAudio::DeviceInfo> m_deviceCache;
