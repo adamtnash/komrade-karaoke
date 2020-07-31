@@ -16,6 +16,8 @@ public:
     explicit MidiMessageDialog(MidiInManager* midiManager, QWidget *parent = nullptr);
     ~MidiMessageDialog();
 
+    static QByteArray getMidiMessage(MidiInManager* midiManager, QByteArray current, bool *accepted, QWidget * parent = nullptr);
+
     void setMessage(QByteArray msg);
     QByteArray getMessage() const;
 

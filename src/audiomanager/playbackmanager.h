@@ -31,6 +31,7 @@ public:
 
     QSharedPointer<TrackData> queuedTrack() const;
     void setQueuedTrack(QSharedPointer<TrackData> queuedTrack, QSharedPointer<TrackData> auxTrack = QSharedPointer<TrackData>());
+    void clearActiveTrack();
 
     QSharedPointer<TrackData> activeTrack() const;
     int activeSample() const;

@@ -88,6 +88,16 @@ void TrackData::renderWaveforms()
     m_waveformPreview = preview;
 }
 
+QStringList TrackData::queueGroup() const
+{
+    return m_queueGroup;
+}
+
+void TrackData::setQueueGroup(const QStringList &queueGroup)
+{
+    m_queueGroup = queueGroup;
+}
+
 bool TrackData::isAux() const
 {
     return m_isAux;
@@ -217,6 +227,7 @@ QDataStream &operator<<(QDataStream & out, const TrackData &data)
     out << data.autoStop();
     out << data.autoPlay();
     out << data.isAux();
+    out << data.queueGroup();
     out << data.waveform();
     out << data.waveformPreview();
     out << *(data.buffer().data());
@@ -238,6 +249,7 @@ QDataStream &operator>>(QDataStream &in, TrackData &data)
         in >> data.m_autoStop;
         in >> data.m_autoPlay;
         in >> data.m_isAux;
+        in >> data.m_queueGroup;
         in >> data.m_waveform;
         in >> data.m_waveformPreview;
         data.m_buffer = AudioFileBuffer::fromDataStream(in);

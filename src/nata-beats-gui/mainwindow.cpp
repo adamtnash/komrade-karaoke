@@ -9,6 +9,7 @@
 #include "playbackdisplay.h"
 #include "trackcomboboxdelegate.h"
 #include "midimessagedelegate.h"
+#include "pixmapdelegate.h"
 #include "midimessagedialog.h"
 #include <QMessageBox>
 
@@ -17,10 +18,13 @@ MainWindow::MainWindow(QWidget *parent)
       ui(new Ui::MainWindow),
       m_model(nullptr),
       m_playbackManager(new PlaybackManager()),
-      m_midiInManager(new MidiInManager(this))
+      m_midiInManager(new MidiInManager(this)),
+      m_controlConfig(new ControlConfig(m_midiInManager, this))
 {
     ui->setupUi(this);
     this->setWindowTitle("Nata Beats");
+
+    ui->tab_controls->layout()->addWidget(m_controlConfig);
 
     auto trackDelegate = new TrackComboBoxDelegate(this, [](QSharedPointer<TrackData> trackData) {
         return !trackData->isAux();
@@ -31,6 +35,15 @@ MainWindow::MainWindow(QWidget *parent)
             return trackData->isAux();
         });
     ui->tv_tracks->setItemDelegateForColumn(TrackFolderModel::AUX_TRACK_COL, auxTrackDelegate);
+
+
+    auto queueGroupDelegate = new TrackComboBoxDelegate(this, [](QSharedPointer<TrackData> trackData) {
+        return !trackData->isAux();
+    }, true);
+    ui->tv_tracks->setItemDelegateForColumn(TrackFolderModel::QUEUE_GROUP_COL, queueGroupDelegate);
+
+    auto pixmapDelegate = new PixmapDelegate(this);
+    ui->tv_tracks->setItemDelegateForColumn(TrackFolderModel::WAVEFORM_COL, pixmapDelegate);
 
     auto midiDelegate = new MidiMessageDelegate(m_midiInManager, this);
     ui->tv_tracks->setItemDelegateForColumn(TrackFolderModel::MIDI_COL, midiDelegate);
@@ -61,7 +74,6 @@ MainWindow::~MainWindow()
 {
     Settings::write("windowSize", this->size(), "UI");
     Settings::write("windowPos", this->pos(), "UI");
-    Settings::write("playMidiControl", m_playMidiControl, "Playback");
     Settings::write("lastOutputDevice", m_playbackManager->currentDevice(), "Playback");
     Settings::write("lastMidiPort", m_midiInManager->currentPort(), "MIDI");
 
@@ -88,11 +100,6 @@ void MainWindow::loadSettings()
     if (!wSize.isNull() && !wPos.isNull()) {
         this->move(wPos.toPoint());
         this->resize(wSize.toSize());
-    }
-
-    QVariant playMidi = Settings::read("playMidiControl", "Playback");
-    if (!playMidi.isNull()) {
-        m_playMidiControl = playMidi.toByteArray();
     }
 }
 
@@ -260,8 +267,52 @@ void MainWindow::handleMidi(QByteArray message)
     if (message.isEmpty()) {
         return;
     }
-    if (message == m_playMidiControl) {
+    if (message == m_controlConfig->playMidiControl()) {
         this->on_pb_togglePlay_clicked();
+    }
+    else if (message == m_controlConfig->clearMidiControl()) {
+        if (m_playbackManager->queuedTrack().isNull() && !m_playbackManager->isRunning()) {
+            this->m_playbackManager->clearActiveTrack();
+        }
+        else {
+            this->m_playbackManager->setQueuedTrack(QSharedPointer<TrackData>());
+        }
+    }
+    else if (message == m_controlConfig->queueMidiControl()) {
+        auto current = this->m_playbackManager->queuedTrack();
+        if (current.isNull()) {
+            current = this->m_playbackManager->activeTrack();
+        }
+
+
+        QList<QSharedPointer<TrackData>> cycleTracks;
+        // Check queue group of active track
+        if (!m_playbackManager->activeTrack().isNull()
+                && !m_playbackManager->activeTrack()->queueGroup().isEmpty()) {
+            for (auto trackName : m_playbackManager->activeTrack()->queueGroup()) {
+                auto track = m_trackFolder->trackData(trackName);
+                if (!track.isNull()) {
+                    cycleTracks.append(track);
+                }
+            }
+        }
+        else {
+            for (auto track : this->m_trackFolder->tracks()) {
+                if (!track->isAux()) {
+                    cycleTracks.append(track);
+                }
+            }
+        }
+
+        if (cycleTracks.size() > 0) {
+            int currIdx = cycleTracks.indexOf(current);
+            if (currIdx < 0) {
+                m_playbackManager->setQueuedTrack(cycleTracks.at(0));
+            }
+            else {
+                m_playbackManager->setQueuedTrack(cycleTracks.at((currIdx + 1) % cycleTracks.size()));
+            }
+        }
     }
     else {
         auto track = m_trackFolder->trackByMidiTrigger(message);
@@ -289,16 +340,6 @@ void MainWindow::on_pb_togglePlay_clicked()
 void MainWindow::on_pb_showTracks_clicked()
 {
     ui->scroll_trackButtons->setHidden(!ui->scroll_trackButtons->isHidden());
-}
-
-void MainWindow::on_pb_configurePlayback_clicked()
-{
-    MidiMessageDialog * dialog = new MidiMessageDialog(m_midiInManager, this);
-    dialog->setMessage(m_playMidiControl);
-    dialog->setWindowTitle("Playback MIDI Control");
-    if (dialog->exec()) {
-        m_playMidiControl = dialog->getMessage();
-    }
 }
 
 void MainWindow::on_pb_backingTrackSelect_clicked()

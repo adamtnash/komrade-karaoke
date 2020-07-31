@@ -49,6 +49,9 @@ public:
     friend QDataStream& operator<<(QDataStream&, const TrackData&);
     friend QDataStream& operator>>(QDataStream&, TrackData&);
 
+    QStringList queueGroup() const;
+    void setQueueGroup(const QStringList &queueGroup);
+
 private:
     TrackData() {}
     void renderWaveforms();
@@ -63,6 +66,8 @@ private:
 
     QString m_autoQueueTrack;
     QString m_auxTrack;
+
+    QStringList m_queueGroup;
 
     bool m_autoStop;
     bool m_autoPlay;

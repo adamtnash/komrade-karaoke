@@ -8,6 +8,7 @@ CONFIG += c++11
 
 SOURCES += \
     audiofilebuffer.cpp \
+    pixmapdelegate.cpp \
     trackcomboboxdelegate.cpp \
     trackdata.cpp \
     trackdatacache.cpp \
@@ -16,6 +17,7 @@ SOURCES += \
 
 HEADERS += \
     audiofilebuffer.h \
+    pixmapdelegate.h \
     trackcomboboxdelegate.h \
     trackdata.h \
     trackdatacache.h \

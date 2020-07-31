@@ -16,7 +16,7 @@
   <widget class="QWidget" name="centralwidget">
    <layout class="QVBoxLayout" name="verticalLayout_3">
     <item>
-     <widget class="QTabWidget" name="tabWidget">
+     <widget class="QTabWidget" name="tabs">
       <property name="currentIndex">
        <number>0</number>
       </property>
@@ -57,13 +57,6 @@
             </property>
             <property name="orientation">
              <enum>Qt::Horizontal</enum>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QPushButton" name="pb_configurePlayback">
-            <property name="text">
-             <string>Configure...</string>
             </property>
            </widget>
           </item>
@@ -116,7 +109,7 @@
         </item>
        </layout>
       </widget>
-      <widget class="QWidget" name="tab_configure">
+      <widget class="QWidget" name="tab_tracks">
        <attribute name="title">
         <string>Tracks</string>
        </attribute>
@@ -150,6 +143,12 @@
          <widget class="QTableView" name="tv_tracks"/>
         </item>
        </layout>
+      </widget>
+      <widget class="QWidget" name="tab_controls">
+       <attribute name="title">
+        <string>Controls</string>
+       </attribute>
+       <layout class="QVBoxLayout" name="verticalLayout_6"/>
       </widget>
       <widget class="QWidget" name="tab_devices">
        <attribute name="title">

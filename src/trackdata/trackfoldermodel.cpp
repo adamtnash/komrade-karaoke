@@ -6,14 +6,15 @@ const int TrackFolderModel::NAME_COL = 0;
 const int TrackFolderModel::BPM_COL = -1;
 const int TrackFolderModel::MIDI_COL = 1;
 const int TrackFolderModel::COLOR_COL = -1;
-const int TrackFolderModel::AUX_TRACK_COL = 2;
-const int TrackFolderModel::AUTO_QUEUE_COL = 3;
-const int TrackFolderModel::AUTO_STOP_COL = 6;
-const int TrackFolderModel::AUTO_PLAY_COL = 5;
-const int TrackFolderModel::IS_AUX_COL = 4;
-const int TrackFolderModel::WAVEFORM_COL = 7;
+const int TrackFolderModel::AUX_TRACK_COL = 3;
+const int TrackFolderModel::AUTO_QUEUE_COL = 4;
+const int TrackFolderModel::AUTO_STOP_COL = 7;
+const int TrackFolderModel::AUTO_PLAY_COL = 6;
+const int TrackFolderModel::IS_AUX_COL = 2;
+const int TrackFolderModel::WAVEFORM_COL = 8;
+const int TrackFolderModel::QUEUE_GROUP_COL = 5;
 
-const int TrackFolderModel::COL_COUNT = 8;
+const int TrackFolderModel::COL_COUNT = 9;
 
 const QSet<int> EDITABLE_COLS = {
     TrackFolderModel::BPM_COL,
@@ -22,6 +23,7 @@ const QSet<int> EDITABLE_COLS = {
     TrackFolderModel::AUTO_QUEUE_COL,
     TrackFolderModel::AUTO_STOP_COL,
     TrackFolderModel::AUTO_PLAY_COL,
+    TrackFolderModel::QUEUE_GROUP_COL,
     TrackFolderModel::IS_AUX_COL
 };
 
@@ -62,6 +64,9 @@ QVariant TrackFolderModel::headerData(int section, Qt::Orientation orientation, 
         }
         else if (section == AUTO_PLAY_COL) {
             return "Auto Play";
+        }
+        else if (section == QUEUE_GROUP_COL) {
+            return "Queue Group";
         }
     }
 
@@ -124,6 +129,19 @@ QVariant TrackFolderModel::data(const QModelIndex &index, int role) const
         }
         else if (index.column() == AUTO_STOP_COL) {
             return trackData->autoStop();
+        }
+        else if (index.column() == QUEUE_GROUP_COL) {
+            if (role == Qt::DisplayRole) {
+                if (trackData->queueGroup().isEmpty()) {
+                    return QVariant();
+                }
+                else {
+                    return QString("%1 tracks (%2)").arg(trackData->queueGroup().size()).arg(trackData->queueGroup().join(","));
+                }
+            }
+            else {
+                return trackData->queueGroup();
+            }
         }
     }
     else if (role == Qt::DecorationRole) {
@@ -202,6 +220,11 @@ bool TrackFolderModel::setData(const QModelIndex &index, const QVariant &value, 
             }
             else if (index.column() == AUTO_STOP_COL) {
                 trackData->setAutoStop(value.toBool());
+                emit dataChanged(index, index, {role, Qt::DisplayRole});
+                return true;
+            }
+            else if (index.column() == QUEUE_GROUP_COL) {
+                trackData->setQueueGroup(value.toStringList());
                 emit dataChanged(index, index, {role, Qt::DisplayRole});
                 return true;
             }

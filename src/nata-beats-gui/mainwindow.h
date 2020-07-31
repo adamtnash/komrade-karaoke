@@ -6,6 +6,7 @@
 #include "trackfoldermodel.h"
 #include "playbackmanager.h"
 #include "midiinmanager.h"
+#include "controlconfig.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -23,7 +24,6 @@ private slots:
     void on_pb_togglePlay_clicked();
     void on_pb_backingTrackSelect_clicked();
     void on_pb_showTracks_clicked();
-    void on_pb_configurePlayback_clicked();
 
     void loadSettings();
 
@@ -52,8 +52,8 @@ private:
     TrackFolderModel* m_model;
     PlaybackManager* m_playbackManager;
     MidiInManager* m_midiInManager;
+    ControlConfig* m_controlConfig;
 
     QMap<QSharedPointer<TrackData>, QPushButton*> m_trackQueuePbs;
-    QByteArray m_playMidiControl;
 };
 #endif // MAINWINDOW_H

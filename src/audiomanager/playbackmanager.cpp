@@ -172,6 +172,15 @@ void PlaybackManager::setQueuedTrack(QSharedPointer<TrackData> queuedTrack, QSha
     emit queueChanged();
 }
 
+void PlaybackManager::clearActiveTrack()
+{
+    QMutexLocker lock(&m_mutex);
+    m_activeTrack = QSharedPointer<TrackData>();
+    m_activeAuxTrack = QSharedPointer<TrackData>();
+    m_activeSample = 0;
+    emit queueChanged();
+}
+
 QSharedPointer<TrackData> PlaybackManager::activeTrack() const
 {
     return m_activeTrack;
@@ -181,7 +190,6 @@ int PlaybackManager::activeSample() const
 {
     return m_activeSample;
 }
-
 
 void PlaybackManager::checkQueue()
 {

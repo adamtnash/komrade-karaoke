@@ -7,15 +7,18 @@ TARGET = nata_beats
 DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x060000    # disables all the APIs deprecated before Qt 6.0.0
 
 SOURCES += \
+    controlconfig.cpp \
     main.cpp \
     mainwindow.cpp \
     settings.cpp
 
 HEADERS += \
+    controlconfig.h \
     mainwindow.h \
     settings.h
 
 FORMS += \
+    controlconfig.ui \
     mainwindow.ui
 
 include(../audiomanager/audiomanager-include.pri)

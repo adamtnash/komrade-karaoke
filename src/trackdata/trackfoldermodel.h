@@ -41,6 +41,7 @@ public:
     static const int AUTO_PLAY_COL;
     static const int IS_AUX_COL;
     static const int WAVEFORM_COL;
+    static const int QUEUE_GROUP_COL;
 
     static const int COL_COUNT;
 

@@ -16,6 +16,21 @@ MidiMessageDialog::~MidiMessageDialog()
     delete ui;
 }
 
+QByteArray MidiMessageDialog::getMidiMessage(MidiInManager *midiManager, QByteArray current, bool *accepted, QWidget *parent)
+{
+    QScopedPointer<MidiMessageDialog> dialog(new MidiMessageDialog(midiManager, parent));
+    dialog->setMessage(current);
+    dialog->setWindowTitle("Playback MIDI Control");
+    if (dialog->exec()) {
+        *accepted = true;
+        return dialog->getMessage();
+    }
+    else {
+        *accepted = false;
+        return QByteArray();
+    }
+}
+
 void MidiMessageDialog::setMessage(QByteArray msg)
 {
     m_select->setMessage(msg);
