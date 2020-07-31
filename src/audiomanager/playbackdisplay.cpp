@@ -6,7 +6,7 @@ PlaybackDisplay::PlaybackDisplay(PlaybackManager* playbackManager, QWidget *pare
     QWidget(parent),
     m_playbackManager(playbackManager)
 {
-    connect(m_playbackManager, SIGNAL(playbackChanged()), this, SLOT(repaint()));
+    connect(m_playbackManager, &PlaybackManager::queueChanged, this, QOverload<>::of(&PlaybackDisplay::repaint), Qt::QueuedConnection);
 
     connect(&m_animationTimer, SIGNAL(timeout()), this, SLOT(repaint()));
     m_animationTimer.setTimerType(Qt::TimerType::CoarseTimer);
