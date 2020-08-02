@@ -5,6 +5,12 @@
 #include <QRandomGenerator>
 #include "trackdatacache.h"
 
+TrackData::TrackData() :
+    m_cacheDirty(true)
+{
+
+}
+
 static int hue = 128;
 QSharedPointer<TrackData> TrackData::fromFileName(QString fileName)
 {
@@ -59,6 +65,8 @@ void TrackData::renderWaveforms()
     prePaint.drawImage(preview.rect(), pix.toImage(), pix.rect());
 
     m_waveformPreview = preview;
+
+    m_cacheDirty = true;
 }
 
 QPixmap TrackData::renderSampleWave(int width, int height, QVector<float> samples, QColor baseColor)
@@ -113,6 +121,7 @@ QStringList TrackData::queueGroup() const
 void TrackData::setQueueGroup(const QStringList &queueGroup)
 {
     m_queueGroup = queueGroup;
+    m_cacheDirty = true;
 }
 
 bool TrackData::isAux() const
@@ -123,6 +132,7 @@ bool TrackData::isAux() const
 void TrackData::setIsAux(bool isAux)
 {
     m_isAux = isAux;
+    m_cacheDirty = true;
 }
 
 bool TrackData::autoPlay() const
@@ -133,6 +143,7 @@ bool TrackData::autoPlay() const
 void TrackData::setAutoPlay(bool autoPlay)
 {
     m_autoPlay = autoPlay;
+    m_cacheDirty = true;
 }
 
 bool TrackData::autoStop() const
@@ -143,6 +154,7 @@ bool TrackData::autoStop() const
 void TrackData::setAutoStop(bool autoStop)
 {
     m_autoStop = autoStop;
+    m_cacheDirty = true;
 }
 
 QColor TrackData::baseColor() const
@@ -164,6 +176,7 @@ QString TrackData::auxTrack() const
 void TrackData::setAuxTrack(const QString &auxTrack)
 {
     m_auxTrack = auxTrack;
+    m_cacheDirty = true;
 }
 
 QString TrackData::autoQueueTrack() const
@@ -174,6 +187,7 @@ QString TrackData::autoQueueTrack() const
 void TrackData::setAutoQueueTrack(const QString &autoQueueTrack)
 {
     m_autoQueueTrack = autoQueueTrack;
+    m_cacheDirty = true;
 }
 
 QString TrackData::fileName() const
@@ -189,6 +203,7 @@ double TrackData::bpm() const
 void TrackData::setBpm(double bpm)
 {
     m_bpm = bpm;
+    m_cacheDirty = true;
 }
 
 QByteArray TrackData::midiTrigger() const
@@ -199,6 +214,7 @@ QByteArray TrackData::midiTrigger() const
 void TrackData::setMidiTrigger(QByteArray midiTrigger)
 {
     m_midiTrigger = midiTrigger;
+    m_cacheDirty = true;
 }
 
 QImage TrackData::waveform() const

@@ -54,7 +54,7 @@ public:
     void setQueueGroup(const QStringList &queueGroup);
 
 private:
-    TrackData() {}
+    TrackData();
     void renderWaveforms();
     static QPixmap renderSampleWave(int width, int height, QVector<float> samples, QColor baseColor);
 
@@ -74,6 +74,8 @@ private:
     bool m_autoStop;
     bool m_autoPlay;
     bool m_isAux;
+
+    bool m_cacheDirty;
 
     friend class TrackDataCache;
 };

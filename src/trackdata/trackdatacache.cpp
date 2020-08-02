@@ -12,6 +12,7 @@ const QString CACHE_V1 = "Nata Beats Cache v1";
 void TrackDataCache::write(QSharedPointer<TrackData> trackData)
 {
     QString fileName = cacheFileName();
+
     QFileInfo fileInfo(fileName);
     QDir dir = fileInfo.dir();
 
@@ -20,10 +21,20 @@ void TrackDataCache::write(QSharedPointer<TrackData> trackData)
     }
 
     QFile file(fileName);
+    if (file.exists() && !trackData->m_cacheDirty) {
+        // no need to write
+        return;
+    }
+
+
     file.open(QIODevice::WriteOnly | QIODevice::Truncate);
     QDataStream out(&file);
     out << CACHE_V1;
     out << *(trackData.data());
+
+    if (out.status() == QDataStream::Ok) {
+        trackData->m_cacheDirty = false;
+    }
 }
 
 QSharedPointer<TrackData> TrackDataCache::read()
@@ -52,6 +63,7 @@ QSharedPointer<TrackData> TrackDataCache::read()
         if (in.status() != QDataStream::Ok) {
             return QSharedPointer<TrackData>();
         }
+        temp.m_cacheDirty = false;
         return QSharedPointer<TrackData>(new TrackData(temp));
     }
     else {
