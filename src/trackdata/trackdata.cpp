@@ -39,22 +39,46 @@ QSharedPointer<TrackData> TrackData::fromFileName(QString fileName)
 void TrackData::renderWaveforms()
 {
     auto buff = m_buffer->floatData();
-    int samplesPerX = qMax(1000, buff.size()/360);
-    double height = 120;
+    int totalHeight = 120;
+    int height = totalHeight / m_buffer->numChannels();
+    int width = 360;
+
+    QPixmap pix(width, totalHeight);
+    for (int i = 0; i < m_buffer->numChannels(); i++) {
+        QPixmap wave = renderSampleWave(width, height, m_buffer->floatData().at(i), m_baseColor);
+        QPainter paint(&pix);
+        paint.drawImage(QRect(0, height*i, width, height), wave.toImage(), wave.rect());
+        paint.end();
+    }
+
+    m_waveform = pix.toImage();
+
+    QPixmap preview(90, 30);
+    QPainter prePaint(&preview);
+    prePaint.fillRect(preview.rect(), QColor(200, 200, 200));
+    prePaint.drawImage(preview.rect(), pix.toImage(), pix.rect());
+
+    m_waveformPreview = preview;
+}
+
+QPixmap TrackData::renderSampleWave(int width, int height, QVector<float> samples, QColor baseColor)
+{
+    QPixmap pix(width, height);
+    int samplesPerX = samples.size()/width;
     double half = height/2.0;
     double dSamplesPerX = double(samplesPerX);
-    QPixmap pix(buff.size()/samplesPerX, height);
+
     QPainter paint(&pix);
-    paint.fillRect(pix.rect(), m_baseColor);
-    QPen avgWave(QColor::fromHsl(m_baseColor.hue(), 0xcc, 0x77), 1);
-    QPen peakWave(QColor::fromHsl(m_baseColor.hue(), 0x99, 0x66), 1);
-    for (int x = 0; x*samplesPerX + samplesPerX < buff.size(); x++) {
+    paint.fillRect(pix.rect(), baseColor);
+    QPen avgWave(QColor::fromHsl(baseColor.hue(), 0xcc, 0x77), 1);
+    QPen peakWave(QColor::fromHsl(baseColor.hue(), 0x99, 0x66), 1);
+    for (int x = 0; x*samplesPerX + samplesPerX < samples.size(); x++) {
         double high = 0;
         double low = 0;
         double avgHigh = 0;
         double avgLow = 0;
         for (int i = x*samplesPerX; i < x*samplesPerX + samplesPerX; i++) {
-            float sample = buff.at(i);
+            float sample = samples.at(i);
             if (sample > 0) {
                 if (sample > high) {
                     high = sample;
@@ -68,7 +92,6 @@ void TrackData::renderWaveforms()
                 avgLow += sample;
             }
         }
-
         avgHigh /= dSamplesPerX;
         avgLow /= dSamplesPerX;
 
@@ -77,15 +100,9 @@ void TrackData::renderWaveforms()
         paint.setPen(avgWave);
         paint.drawLine(x, half - half*avgHigh, x, half - half*avgLow);
     }
+    paint.end();
 
-    m_waveform = pix.toImage();
-
-    QPixmap preview(90, 30);
-    QPainter prePaint(&preview);
-    prePaint.fillRect(preview.rect(), QColor(200, 200, 200));
-    prePaint.drawImage(preview.rect(), pix.toImage(), pix.rect());
-
-    m_waveformPreview = preview;
+    return pix;
 }
 
 QStringList TrackData::queueGroup() const
@@ -199,14 +216,19 @@ QSharedPointer<AudioFileBuffer> TrackData::buffer() const
     return m_buffer;
 }
 
-QVector<float> TrackData::samples() const
+QVector<float> TrackData::channelSamples(int channel) const
 {
-    return m_buffer->floatData();
+    return m_buffer->floatData().at(channel % m_buffer->numChannels());
 }
 
-int TrackData::sampleCount() const
+int TrackData::frameCount() const
 {
-    return m_buffer->floatData().size();
+    return m_buffer->numFrames();
+}
+
+int TrackData::channelCount() const
+{
+    return m_buffer->numChannels();
 }
 
 double TrackData::samplesPerBeat() const

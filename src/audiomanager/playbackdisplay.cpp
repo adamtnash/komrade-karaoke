@@ -44,7 +44,7 @@ void PlaybackDisplay::drawActiveTrackOverlay(QPainter *painter, QRect rect)
 
     auto track = m_playbackManager->activeTrack();
 
-    double percent = double(m_playbackManager->activeSample()) / double(track->sampleCount());
+    double percent = double(m_playbackManager->activeFrame()) / double(track->frameCount());
     int x = rect.x() + percent*rect.width();
     painter->setCompositionMode(QPainter::RasterOp_SourceXorDestination);
     painter->setPen(QColor(0xff, 0xff, 0xff));

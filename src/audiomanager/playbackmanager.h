@@ -6,7 +6,6 @@
 #include <QMutex>
 #include "RtAudio.h"
 #include <QHash>
-#include <QAtomicInt>
 
 class PlaybackManager : public QObject
 {
@@ -21,8 +20,8 @@ public:
     bool openDevice(const QString &deviceName);
 
     void close();
-    void start(int fadeInSamples = 100);
-    void stop(int fadeOutSamples = 1000);
+    void start(int fadeInFrames = 100);
+    void stop(int fadeOutFrames = 1000);
     void abort();
 
     bool isRunning();
@@ -34,12 +33,18 @@ public:
     void clearActiveTrack();
 
     QSharedPointer<TrackData> activeTrack() const;
-    int activeSample() const;
+    int activeFrame() const;
 
     int outChannels() const;
     void setOutChannels(int outChannels);
 
     bool trackOk(QSharedPointer<TrackData> track);
+
+    QPair<int, int> getMainOuts() const;
+    void setMainOuts(const QPair<int, int> &mainOuts);
+
+    QPair<int, int> getAuxOuts() const;
+    void setAuxOuts(const QPair<int, int> &auxOuts);
 
 signals:
     void opened();
@@ -63,8 +68,12 @@ private:
 
     QSharedPointer<TrackData> m_activeTrack;
     QSharedPointer<TrackData> m_activeAuxTrack;
-    int m_activeSample;
+    int m_activeFrame;
     int m_outChannels;
+    QPair<int, int> m_mainOuts;
+    QPair<int, int> m_auxOuts;
+    int m_bufferSize;
+
     QMutex m_mutex;
 
     RtAudio* m_audio;
@@ -72,12 +81,12 @@ private:
 
     float m_volume;
 
-    QAtomicInt m_fadeOutSamples;
-    QAtomicInt m_currFadeOut;
-    QAtomicInt m_fadeOutStarted;
+    int m_fadeOutFrames;
+    int m_currFadeOut;
+    bool m_fadeOutStarted;
 
-    QAtomicInt m_fadeInSamples;
-    QAtomicInt m_currFadeIn;
+    int m_fadeInFrames;
+    int m_currFadeIn;
 
     bool m_deviceCacheDirty;
     QList<RtAudio::DeviceInfo> m_deviceCache;

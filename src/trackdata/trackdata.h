@@ -23,8 +23,9 @@ public:
 
     QSharedPointer<AudioFileBuffer> buffer() const;
 
-    QVector<float> samples() const;
-    int sampleCount() const;
+    QVector<float> channelSamples(int channel) const;
+    int frameCount() const;
+    int channelCount() const;
 
     double samplesPerBeat() const;
 
@@ -55,6 +56,7 @@ public:
 private:
     TrackData() {}
     void renderWaveforms();
+    static QPixmap renderSampleWave(int width, int height, QVector<float> samples, QColor baseColor);
 
     QString m_fileName;
     double m_bpm;
