@@ -19,10 +19,12 @@ public:
     QByteArray playMidiControl() const;
     QByteArray clearMidiControl() const;
     QByteArray queueMidiControl() const;
+    QByteArray volumeControl() const;
 
     void setPlayMidiControl(const QByteArray &playMidiControl);
     void setClearMidiControl(const QByteArray &clearMidiControl);
     void setQueueMidiControl(const QByteArray &queueMidiControl);
+    void setVolumeControl(const QByteArray &volumeControl);
 
 public slots:
     void loadSettings();
@@ -35,6 +37,8 @@ private slots:
 
     void on_pb_clearEdit_clicked();
 
+    void on_pb_volumeControl_clicked();
+
 private:
     Ui::ControlConfig *ui;
 
@@ -43,6 +47,7 @@ private:
     QByteArray m_playMidiControl;
     QByteArray m_clearMidiControl;
     QByteArray m_queueMidiControl;
+    QByteArray m_volumeControl;
 };
 
 #endif // CONTROLCONFIG_H

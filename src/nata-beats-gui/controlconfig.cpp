@@ -32,6 +32,10 @@ void ControlConfig::loadSettings()
     if (!queueMidi.isNull()) {
         setQueueMidiControl(queueMidi.toByteArray());
     }
+    QVariant volumeMidi = Settings::read("volumeControl", "Playback");
+    if (!volumeMidi.isNull()) {
+        setVolumeControl(volumeMidi.toByteArray());
+    }
 }
 
 void ControlConfig::saveSettings()
@@ -39,6 +43,7 @@ void ControlConfig::saveSettings()
     Settings::write("playMidiControl", m_playMidiControl, "Playback");
     Settings::write("clearMidiControl", m_clearMidiControl, "Playback");
     Settings::write("queueMidiControl", m_queueMidiControl, "Playback");
+    Settings::write("volumeControl", m_volumeControl, "Playback");
 }
 
 void ControlConfig::setQueueMidiControl(const QByteArray &queueMidiControl)
@@ -59,6 +64,12 @@ void ControlConfig::setPlayMidiControl(const QByteArray &playMidiControl)
     ui->le_play->setText(m_playMidiControl.toHex());
 }
 
+void ControlConfig::setVolumeControl(const QByteArray &volumeControl)
+{
+    m_volumeControl = volumeControl;
+    ui->le_volume->setText(m_volumeControl.toHex());
+}
+
 QByteArray ControlConfig::playMidiControl() const
 {
     return m_playMidiControl;
@@ -74,6 +85,10 @@ QByteArray ControlConfig::queueMidiControl() const
     return m_queueMidiControl;
 }
 
+QByteArray ControlConfig::volumeControl() const
+{
+    return m_volumeControl;
+}
 
 void ControlConfig::on_pb_playEdit_clicked()
 {
@@ -101,3 +116,13 @@ void ControlConfig::on_pb_clearEdit_clicked()
         setClearMidiControl(result);
     }
 }
+
+void ControlConfig::on_pb_volumeControl_clicked()
+{
+    bool accepted;
+    QByteArray result = MidiMessageDialog::getMidiMessage(m_midiInManager, m_volumeControl, &accepted, this);
+    if (accepted && result.length() > 1) {
+        setVolumeControl(result.mid(0, result.length()-1));
+    }
+}
+

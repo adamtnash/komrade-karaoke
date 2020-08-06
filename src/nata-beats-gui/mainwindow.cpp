@@ -314,6 +314,11 @@ void MainWindow::handleMidi(QByteArray message)
             }
         }
     }
+    else if (!m_controlConfig->volumeControl().isEmpty() && message.startsWith(m_controlConfig->volumeControl())) {
+        double value = double(message.back());
+        value /= 1.27;
+        ui->hs_volume->setValue(int(value));
+    }
     else {
         auto track = m_trackFolder->trackByMidiTrigger(message);
         if (!track.isNull()) {
