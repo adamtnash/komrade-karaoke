@@ -3,8 +3,8 @@ win32 {
     LIBS *= -lole32
 }
 
-unix {
-    DEFINES *= __UNIX_JACK__
-    LIBS *= -ljack
+linux {
+    DEFINES *= __LINUX_ALSA__
+    LIBS *= -lasound
     LIBS *= -lpthread
 }

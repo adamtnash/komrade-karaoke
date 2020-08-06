@@ -4,7 +4,8 @@ win32 {
     LIBS *= -lwinmm
 }
 
-unix {
-    DEFINES *= __UNIX_JACK__
-    LIBS *= -ljack
+linux {
+    DEFINES *= __LINUX_ALSA__
+    LIBS *= -lasound
+    LIBS *= -lpthread
 }
