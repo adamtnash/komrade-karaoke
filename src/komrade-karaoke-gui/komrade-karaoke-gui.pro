@@ -2,7 +2,7 @@ QT       += core gui widgets
 
 CONFIG += c++11
 
-TARGET = nata_beats
+TARGET = komrade_karaoke
 
 DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x060000    # disables all the APIs deprecated before Qt 6.0.0
 

@@ -22,7 +22,7 @@ MainWindow::MainWindow(QWidget *parent)
       m_controlConfig(new ControlConfig(m_midiInManager, this))
 {
     ui->setupUi(this);
-    this->setWindowTitle("Nata Beats");
+    this->setWindowTitle("Komrade Karaoke");
 
     ui->tab_controls->layout()->addWidget(m_controlConfig);
 

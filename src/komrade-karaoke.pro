@@ -1,7 +1,7 @@
 TEMPLATE = subdirs
 
 SUBDIRS += \
-    nata-beats-gui \
+    komrade-karaoke-gui \
     extern/rtmidi \
     extern/rtaudio \
     audiomanager \
@@ -10,4 +10,4 @@ SUBDIRS += \
 
 audiomanager.depends = extern/rtaudio trackdata
 midimanager.depends = extern/rtmidi
-nata-beats-gui.depends = trackdata audiomanager midimanager
+komrade-karaoke-gui.depends = trackdata audiomanager midimanager

@@ -7,7 +7,7 @@ TrackDataCache::TrackDataCache(QString sourceFileName) :
 
 }
 
-const QString CACHE_V1 = "Nata Beats Cache v1";
+const QString CACHE_V1 = "Komrade Karaoke Cache v1";
 
 void TrackDataCache::write(QSharedPointer<TrackData> trackData)
 {
@@ -75,5 +75,5 @@ QSharedPointer<TrackData> TrackDataCache::read()
 QString TrackDataCache::cacheFileName()
 {
     QFileInfo fileInfo(m_sourceFileName);
-    return fileInfo.canonicalPath()+"/_nb_cache_/"+fileInfo.baseName()+".dat";
+    return fileInfo.canonicalPath()+"/_track_data_cache_/"+fileInfo.baseName()+".dat";
 }
