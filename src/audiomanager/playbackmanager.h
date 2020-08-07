@@ -7,6 +7,9 @@
 #include "RtAudio.h"
 #include <QHash>
 
+typedef QPair<int,int> ChannelPair;
+Q_DECLARE_METATYPE(ChannelPair);
+
 class PlaybackManager : public QObject
 {
     Q_OBJECT
@@ -15,7 +18,8 @@ public:
     ~PlaybackManager();
 
     QStringList pollDevices();
-    QStringList getDevices();
+    QList<RtAudio::DeviceInfo> getDevices();
+    QStringList getDeviceNames();
     QString currentDevice() const;
     bool openDevice(const QString &deviceName);
 
@@ -36,15 +40,14 @@ public:
     int activeFrame() const;
 
     int outChannels() const;
-    void setOutChannels(int outChannels);
 
     bool trackOk(QSharedPointer<TrackData> track);
 
     QPair<int, int> getMainOuts() const;
-    void setMainOuts(const QPair<int, int> &mainOuts);
+    void setMainOuts(const ChannelPair &mainOuts);
 
     QPair<int, int> getAuxOuts() const;
-    void setAuxOuts(const QPair<int, int> &auxOuts);
+    void setAuxOuts(const ChannelPair &auxOuts);
 
 signals:
     void opened();
@@ -70,8 +73,8 @@ private:
     QSharedPointer<TrackData> m_activeAuxTrack;
     int m_activeFrame;
     int m_outChannels;
-    QPair<int, int> m_mainOuts;
-    QPair<int, int> m_auxOuts;
+    ChannelPair m_mainOuts;
+    ChannelPair m_auxOuts;
     int m_bufferSize;
 
     QMutex m_mutex;

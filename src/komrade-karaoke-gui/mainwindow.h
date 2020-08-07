@@ -34,6 +34,8 @@ private slots:
 
     void initAudio();
     void selectAudioDevice(QString deviceName);
+    void selectMainOuts(int idx);
+    void selectAuxOuts(int idx);
     void checkPlayback();
     void playbackStarted();
     void playbackStopped();

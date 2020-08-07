@@ -20,7 +20,7 @@ QByteArray MidiMessageDialog::getMidiMessage(MidiInManager *midiManager, QByteAr
 {
     QScopedPointer<MidiMessageDialog> dialog(new MidiMessageDialog(midiManager, parent));
     dialog->setMessage(current);
-    dialog->setWindowTitle("Playback MIDI Control");
+    dialog->setWindowTitle("Designate MIDI Control");
     if (dialog->exec()) {
         *accepted = true;
         return dialog->getMessage();

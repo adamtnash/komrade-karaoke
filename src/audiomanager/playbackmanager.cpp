@@ -31,10 +31,10 @@ PlaybackManager::~PlaybackManager()
 QStringList PlaybackManager::pollDevices()
 {
     m_deviceCacheDirty = true;
-    return getDevices();
+    return getDeviceNames();
 }
 
-QStringList PlaybackManager::getDevices()
+QList<RtAudio::DeviceInfo> PlaybackManager::getDevices()
 {
     if (m_deviceCacheDirty) {
         m_deviceCache.clear();
@@ -46,6 +46,12 @@ QStringList PlaybackManager::getDevices()
         }
         m_deviceCacheDirty = false;
     }
+    return m_deviceCache;
+}
+
+QStringList PlaybackManager::getDeviceNames()
+{
+    getDevices();
     QStringList devices;
     for (auto device : m_deviceCache) {
         devices.append(device.name.c_str());
@@ -65,8 +71,9 @@ bool PlaybackManager::openDevice(const QString &deviceName)
 {
     close();
     m_currentDevice = QString();
+    m_outChannels = 0;
 
-    int idx = getDevices().indexOf(deviceName);
+    int idx = getDeviceNames().indexOf(deviceName);
     if (idx < 0) {
         reportError(QString("Requested audio device is not available: %1").arg(deviceName));
         return false;
@@ -213,34 +220,31 @@ void PlaybackManager::checkQueue()
     emit queueChanged();
 }
 
-QPair<int, int> PlaybackManager::getAuxOuts() const
+ChannelPair PlaybackManager::getAuxOuts() const
 {
     return m_auxOuts;
 }
 
-void PlaybackManager::setAuxOuts(const QPair<int, int> &auxOuts)
+void PlaybackManager::setAuxOuts(const ChannelPair &auxOuts)
 {
+    QMutexLocker lock(&m_mutex);
     m_auxOuts = auxOuts;
 }
 
-QPair<int, int> PlaybackManager::getMainOuts() const
+ChannelPair PlaybackManager::getMainOuts() const
 {
     return m_mainOuts;
 }
 
-void PlaybackManager::setMainOuts(const QPair<int, int> &mainOuts)
+void PlaybackManager::setMainOuts(const ChannelPair &mainOuts)
 {
+    QMutexLocker lock(&m_mutex);
     m_mainOuts = mainOuts;
 }
 
 int PlaybackManager::outChannels() const
 {
     return m_outChannels;
-}
-
-void PlaybackManager::setOutChannels(int outChannels)
-{
-    m_outChannels = outChannels;
 }
 
 bool PlaybackManager::trackOk(QSharedPointer<TrackData> track)
@@ -256,8 +260,10 @@ void PlaybackManager::setVolume(float volume)
 int PlaybackManager::writeNextAudioData(void *outputBuffer, unsigned int nFrames)
 {
     QMutexLocker lock(&m_mutex);
-    memset(outputBuffer, 0.0f, sizeof(float) * m_outChannels);
     float* out = static_cast<float*>(outputBuffer);
+    for (size_t i = 0; i < nFrames * m_outChannels; i++) {
+        out[i] = 0.0f;
+    }
 
     if (m_activeTrack.isNull()) {
         checkQueue();
@@ -267,7 +273,21 @@ int PlaybackManager::writeNextAudioData(void *outputBuffer, unsigned int nFrames
         return endPlayback();
     }
 
+    bool mainPlayback = m_mainOuts.first >= 0;
     bool auxPlayback = m_auxOuts.first >= 0 &&  trackOk(m_activeAuxTrack);
+
+    float mainFactor = 1.0f;
+    float auxFactor = 1.0f;
+    if (m_mainOuts.first == m_mainOuts.second) {
+        mainFactor *= 0.5f;
+    }
+    if (m_auxOuts.first == m_auxOuts.second) {
+        auxFactor *= 0.5f;
+    }
+    if (m_mainOuts.first == m_auxOuts.first) {
+        mainFactor *= 0.5f;
+        auxFactor *= 0.5f;
+    }
 
     for (unsigned int i = 0; i < nFrames; i++) {
         // handle track completion
@@ -307,14 +327,17 @@ int PlaybackManager::writeNextAudioData(void *outputBuffer, unsigned int nFrames
             }
         }
 
-        out[m_mainOuts.first*nFrames + i] = m_activeTrack->channelSamples(0).at(frame) * volume;
-        out[m_mainOuts.second*nFrames + i] = m_activeTrack->channelSamples(1).at(frame) * volume;
+
+        if (mainPlayback) {
+            out[m_mainOuts.first*nFrames + i] += m_activeTrack->channelSamples(0).at(frame) * volume * mainFactor;
+            out[m_mainOuts.second*nFrames + i] += m_activeTrack->channelSamples(1).at(frame) * volume * mainFactor;
+        }
 
         // Aux output
         if (auxPlayback) {
             int auxFrame = frame % m_activeAuxTrack->frameCount();
-            out[m_auxOuts.first*nFrames + i] = m_activeAuxTrack->channelSamples(0).at(auxFrame) * volume;
-            out[m_auxOuts.second*nFrames + i] = m_activeAuxTrack->channelSamples(1).at(auxFrame) * volume;
+            out[m_auxOuts.first*nFrames + i] += m_activeAuxTrack->channelSamples(0).at(auxFrame) * volume * auxFactor;
+            out[m_auxOuts.second*nFrames + i] += m_activeAuxTrack->channelSamples(1).at(auxFrame) * volume * auxFactor;
         }
 
         if (!m_fadeOutStarted) {

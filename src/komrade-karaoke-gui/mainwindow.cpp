@@ -75,6 +75,8 @@ MainWindow::~MainWindow()
     Settings::write("windowSize", this->size(), "UI");
     Settings::write("windowPos", this->pos(), "UI");
     Settings::write("lastOutputDevice", m_playbackManager->currentDevice(), "Playback");
+    Settings::write("lastMainOut", QVariant::fromValue(m_playbackManager->getMainOuts()), "Playback");
+    Settings::write("lastAuxOut", QVariant::fromValue(m_playbackManager->getAuxOuts()), "Playback");
     Settings::write("lastMidiPort", m_midiInManager->currentPort(), "MIDI");
 
     if (!m_trackFolder.isNull()) {
@@ -144,13 +146,16 @@ void MainWindow::adjustToTrackInitialization()
     }
     m_trackQueuePbs.clear();
 
+    int pbCount = 0;
     for (auto trackData : m_trackFolder->tracks()) {
-        if (trackData.isNull()) {
+        if (trackData.isNull() || trackData->isAux()) {
             continue;
         }
         auto pb = new QPushButton(trackData->fileName());
-        ui->triggerLayout->layout()->addWidget(pb);
+        pb->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+        ui->triggerGridLayout->addWidget(pb, pbCount/3, pbCount%3);
         m_trackQueuePbs.insert(trackData, pb);
+        pbCount++;
 
         connect(pb, &QPushButton::clicked, [this, trackData]() {
             this->queueTrack(trackData);
@@ -211,6 +216,74 @@ void MainWindow::initAudio()
 void MainWindow::selectAudioDevice(QString deviceName)
 {
     m_playbackManager->openDevice(deviceName);
+
+    disconnect(ui->cb_mainOut, SIGNAL(currentIndexChanged(int)), this, SLOT(selectMainOuts(int)));
+    disconnect(ui->cb_auxOut, SIGNAL(currentIndexChanged(int)), this, SLOT(selectAuxOuts(int)));
+
+    ui->cb_mainOut->clear();
+    ui->cb_auxOut->clear();
+
+    ui->cb_mainOut->addItem("< No Main >", QVariant::fromValue(ChannelPair(-1, -1)));
+    ui->cb_auxOut->addItem("< No Aux >", QVariant::fromValue(ChannelPair(-1, -1)));
+
+    // Add stereo out options
+    for (int i = 1; i < m_playbackManager->outChannels(); i += 2) {
+        ui->cb_mainOut->addItem(QString("%1 - %2").arg(i).arg(i+1), QVariant::fromValue(ChannelPair(i-1, i)));
+        ui->cb_auxOut->addItem(QString("%1 - %2").arg(i).arg(i+1), QVariant::fromValue(ChannelPair(i-1, i)));
+    }
+
+    // Add mono out options
+    for (int i = 0; i < m_playbackManager->outChannels(); i++) {
+        ui->cb_mainOut->addItem(QString("%1 (Mono)").arg(i+1), QVariant::fromValue(ChannelPair(i, i)));
+        ui->cb_auxOut->addItem(QString("%1 (Mono)").arg(i+1), QVariant::fromValue(ChannelPair(i, i)));
+    }
+
+    int defaultMain = ui->cb_mainOut->findData(QVariant::fromValue(m_playbackManager->getMainOuts()));
+    QVariant lastMain = Settings::read("lastMainOut", "Playback");
+    if (!lastMain.isNull()) {
+        int idx = ui->cb_mainOut->findData(lastMain);
+        if (idx >= 0) {
+            defaultMain = idx;
+        }
+    }
+    if (defaultMain >= 0) {
+        ui->cb_mainOut->setCurrentIndex(defaultMain);
+        selectMainOuts(defaultMain);
+    }
+
+    int defaultAux = ui->cb_auxOut->findData(QVariant::fromValue(m_playbackManager->getAuxOuts()));
+    QVariant lastAux = Settings::read("lastAuxOut", "Playback");
+    if (!lastAux.isNull()) {
+        int idx = ui->cb_auxOut->findData(lastAux);
+        if (idx >= 0) {
+            defaultAux = idx;
+        }
+    }
+    if (defaultAux >= 0) {
+        ui->cb_auxOut->setCurrentIndex(defaultAux);
+        selectAuxOuts(defaultAux);
+    }
+
+    connect(ui->cb_mainOut, SIGNAL(currentIndexChanged(int)), this, SLOT(selectMainOuts(int)));
+    connect(ui->cb_auxOut, SIGNAL(currentIndexChanged(int)), this, SLOT(selectAuxOuts(int)));
+}
+
+void MainWindow::selectMainOuts(int idx)
+{
+    if (idx < 0 || idx >= ui->cb_mainOut->count()) {
+        return;
+    }
+
+    m_playbackManager->setMainOuts(ui->cb_mainOut->itemData(idx).value<ChannelPair>());
+}
+
+void MainWindow::selectAuxOuts(int idx)
+{
+    if (idx < 0 || idx >= ui->cb_auxOut->count()) {
+        return;
+    }
+
+    m_playbackManager->setAuxOuts(ui->cb_auxOut->itemData(idx).value<ChannelPair>());
 }
 
 void MainWindow::checkPlayback()
@@ -264,6 +337,10 @@ void MainWindow::selectMidiPort(QString portName)
 void MainWindow::handleMidi(QByteArray message)
 {
     ui->lb_midiCheck->setText("0x"+message.toHex());
+    // only apply playback controls if playback tab is active
+    if (ui->tabs->currentWidget() != ui->tab_playback) {
+        return;
+    }
     if (message.isEmpty()) {
         return;
     }
@@ -275,7 +352,7 @@ void MainWindow::handleMidi(QByteArray message)
             this->m_playbackManager->clearActiveTrack();
         }
         else {
-            this->m_playbackManager->setQueuedTrack(QSharedPointer<TrackData>());
+            queueTrack(QSharedPointer<TrackData>());
         }
     }
     else if (message == m_controlConfig->queueMidiControl()) {
@@ -307,10 +384,10 @@ void MainWindow::handleMidi(QByteArray message)
         if (cycleTracks.size() > 0) {
             int currIdx = cycleTracks.indexOf(current);
             if (currIdx < 0) {
-                m_playbackManager->setQueuedTrack(cycleTracks.at(0));
+                queueTrack(cycleTracks.at(0));
             }
             else {
-                m_playbackManager->setQueuedTrack(cycleTracks.at((currIdx + 1) % cycleTracks.size()));
+               queueTrack(cycleTracks.at((currIdx + 1) % cycleTracks.size()));
             }
         }
     }
@@ -319,7 +396,7 @@ void MainWindow::handleMidi(QByteArray message)
         value /= 1.27;
         ui->hs_volume->setValue(int(value));
     }
-    else {
+    else if (!m_trackFolder.isNull()) {
         auto track = m_trackFolder->trackByMidiTrigger(message);
         if (!track.isNull()) {
             this->queueTrack(track);
