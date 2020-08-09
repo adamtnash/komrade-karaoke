@@ -36,6 +36,9 @@ private slots:
     void selectAudioDevice(QString deviceName);
     void selectMainOuts(int idx);
     void selectAuxOuts(int idx);
+    void selectBufferSize(int idx);
+    void bufferResized(unsigned int size);
+    void selectSampleRate(int idx);
     void checkPlayback();
     void playbackStarted();
     void playbackStopped();
@@ -47,6 +50,8 @@ private slots:
     void reportError(QString errorText, QString title = "Error");
 
     void on_hs_volume_valueChanged(int value);
+
+    void on_pb_retryDevice_clicked();
 
 private:
     Ui::MainWindow *ui;

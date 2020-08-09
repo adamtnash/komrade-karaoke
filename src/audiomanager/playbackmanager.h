@@ -21,7 +21,7 @@ public:
     QList<RtAudio::DeviceInfo> getDevices();
     QStringList getDeviceNames();
     QString currentDevice() const;
-    bool openDevice(const QString &deviceName);
+    bool openDevice(QString deviceName);
 
     void close();
     void start(int fadeInFrames = 100);
@@ -49,6 +49,15 @@ public:
     QPair<int, int> getAuxOuts() const;
     void setAuxOuts(const ChannelPair &auxOuts);
 
+    unsigned int getBufferSize() const;
+    bool setBufferSize(unsigned int bufferSize);
+
+    unsigned int getSampleRate() const;
+    bool setSampleRate(unsigned int sampleRate);
+
+    QVector<unsigned int> getAvailableBufferSizes() const;
+    QVector<unsigned int> getAvailableSampleRates(QString deviceName = QString()) const;
+
 signals:
     void opened();
     void closed();
@@ -56,6 +65,8 @@ signals:
     void stopped();
     void queueChanged();
     void trackStarted(QString);
+
+    void bufferResized(unsigned int);
 
     void reportError(QString);
 
@@ -75,7 +86,8 @@ private:
     int m_outChannels;
     ChannelPair m_mainOuts;
     ChannelPair m_auxOuts;
-    int m_bufferSize;
+    unsigned int m_bufferSize;
+    unsigned int m_sampleRate;
 
     QMutex m_mutex;
 

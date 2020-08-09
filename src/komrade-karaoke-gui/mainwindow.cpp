@@ -54,6 +54,12 @@ MainWindow::MainWindow(QWidget *parent)
     connect(m_playbackManager, SIGNAL(closed()), this, SLOT(checkPlayback()), Qt::QueuedConnection);
     connect(m_playbackManager, SIGNAL(started()), this, SLOT(playbackStarted()), Qt::QueuedConnection);
     connect(m_playbackManager, SIGNAL(stopped()), this, SLOT(playbackStopped()), Qt::QueuedConnection);
+    connect(m_playbackManager,
+            &PlaybackManager::bufferResized,
+            this,
+            &MainWindow::bufferResized,
+            Qt::QueuedConnection);
+
     checkPlayback();
 
     loadSettings();
@@ -77,6 +83,8 @@ MainWindow::~MainWindow()
     Settings::write("lastOutputDevice", m_playbackManager->currentDevice(), "Playback");
     Settings::write("lastMainOut", QVariant::fromValue(m_playbackManager->getMainOuts()), "Playback");
     Settings::write("lastAuxOut", QVariant::fromValue(m_playbackManager->getAuxOuts()), "Playback");
+    Settings::write("lastSampleRate", QVariant::fromValue(m_playbackManager->getSampleRate()), "Playback");
+    Settings::write("lastBufferSize", QVariant::fromValue(m_playbackManager->getBufferSize()), "Playback");
     Settings::write("lastMidiPort", m_midiInManager->currentPort(), "MIDI");
 
     if (!m_trackFolder.isNull()) {
@@ -102,6 +110,16 @@ void MainWindow::loadSettings()
     if (!wSize.isNull() && !wPos.isNull()) {
         this->move(wPos.toPoint());
         this->resize(wSize.toSize());
+    }
+
+    QVariant lastBuffSize = Settings::read("lastBufferSize", "Playback");
+    if (!lastBuffSize.isNull()) {
+        m_playbackManager->setBufferSize(lastBuffSize.toUInt());
+    }
+
+    QVariant lastRate = Settings::read("lastSampleRate", "Playback");
+    if (!lastRate.isNull()) {
+        m_playbackManager->setSampleRate(lastRate.toUInt());
     }
 }
 
@@ -190,16 +208,18 @@ void MainWindow::queueTrack(QSharedPointer<TrackData> track)
 
 void MainWindow::initAudio()
 {
+    ui->lb_failedDevice->setVisible(false);
+    ui->pb_retryDevice->setVisible(false);
     disconnect(ui->cb_audioOutput, &QComboBox::currentTextChanged, this, &MainWindow::selectAudioDevice);
     ui->cb_audioOutput->clear();
     auto devices = m_playbackManager->pollDevices();
     ui->cb_audioOutput->addItems(devices);
 
+    // figure out default device
     QString device;
     if (devices.size() > 0) {
         device = devices.at(0);
     }
-
     QVariant lastDevice = Settings::read("lastOutputDevice", "Playback");
     if (!lastDevice.isNull() && devices.contains(lastDevice.toString())) {
         device = lastDevice.toString();
@@ -215,7 +235,48 @@ void MainWindow::initAudio()
 
 void MainWindow::selectAudioDevice(QString deviceName)
 {
-    m_playbackManager->openDevice(deviceName);
+    m_playbackManager->close();
+
+    // sample rate and buffer size
+    disconnect(ui->cb_bufferSize, SIGNAL(currentIndexChanged(int)), this, SLOT(selectBufferSize(int)));
+    disconnect(ui->cb_sampleRate, SIGNAL(currentIndexChanged(int)), this, SLOT(selectSampleRate(int)));
+    ui->cb_sampleRate->clear();
+    ui->cb_bufferSize->clear();
+
+    for (auto rate : m_playbackManager->getAvailableSampleRates(deviceName)) {
+        ui->cb_sampleRate->addItem(QString("%1").arg(rate), rate);
+    }
+
+    for (auto buffSize : m_playbackManager->getAvailableBufferSizes()) {
+        ui->cb_bufferSize->addItem(QString("%1").arg(buffSize), buffSize);
+    }
+
+    int defaultRate = ui->cb_sampleRate->findData(QVariant::fromValue(m_playbackManager->getSampleRate()));
+    if (defaultRate >= 0) {
+        ui->cb_sampleRate->setCurrentIndex(defaultRate);
+        selectSampleRate(defaultRate);
+    }
+    else if (ui->cb_sampleRate->count() > 0) {
+        ui->cb_sampleRate->setCurrentIndex(0);
+        selectSampleRate(ui->cb_sampleRate->currentData().toUInt());
+    }
+
+    int defaultBuffSize = ui->cb_bufferSize->findData(QVariant::fromValue(m_playbackManager->getBufferSize()));
+    if (defaultBuffSize >= 0) {
+        ui->cb_bufferSize->setCurrentIndex(defaultBuffSize);
+        selectBufferSize(defaultBuffSize);
+    }
+
+    connect(ui->cb_bufferSize, SIGNAL(currentIndexChanged(int)), this, SLOT(selectBufferSize(int)));
+    connect(ui->cb_sampleRate, SIGNAL(currentIndexChanged(int)), this, SLOT(selectSampleRate(int)));
+
+    ui->lb_failedDevice->setVisible(false);
+    ui->pb_retryDevice->setVisible(false);
+    if (!m_playbackManager->openDevice(deviceName)) {
+        ui->lb_failedDevice->setVisible(true);
+        ui->pb_retryDevice->setVisible(true);
+        return;
+    }
 
     disconnect(ui->cb_mainOut, SIGNAL(currentIndexChanged(int)), this, SLOT(selectMainOuts(int)));
     disconnect(ui->cb_auxOut, SIGNAL(currentIndexChanged(int)), this, SLOT(selectAuxOuts(int)));
@@ -284,6 +345,45 @@ void MainWindow::selectAuxOuts(int idx)
     }
 
     m_playbackManager->setAuxOuts(ui->cb_auxOut->itemData(idx).value<ChannelPair>());
+}
+
+void MainWindow::selectBufferSize(int idx)
+{
+    if (idx < 0 || idx >= ui->cb_bufferSize->count()) {
+        return;
+    }
+
+    ui->lb_failedDevice->setVisible(false);
+    ui->pb_retryDevice->setVisible(false);
+    if (!m_playbackManager->setBufferSize(ui->cb_bufferSize->itemData(idx).toUInt())) {
+       ui->lb_failedDevice->setVisible(true);
+       ui->pb_retryDevice->setVisible(true);
+       return;
+    }
+}
+
+void MainWindow::bufferResized(unsigned int size)
+{
+    disconnect(ui->cb_bufferSize, SIGNAL(currentIndexChanged(int)), this, SLOT(selectBufferSize(int)));
+
+    ui->cb_bufferSize->setCurrentText(QString("%1").arg(size));
+
+    connect(ui->cb_bufferSize, SIGNAL(currentIndexChanged(int)), this, SLOT(selectBufferSize(int)));
+}
+
+void MainWindow::selectSampleRate(int idx)
+{
+    if (idx < 0 || idx >= ui->cb_sampleRate->count()) {
+        return;
+    }
+
+    ui->lb_failedDevice->setVisible(false);
+    ui->pb_retryDevice->setVisible(false);
+    if (!m_playbackManager->setSampleRate(ui->cb_sampleRate->itemData(idx).toUInt())) {
+        ui->lb_failedDevice->setVisible(true);
+        ui->pb_retryDevice->setVisible(true);
+        return;
+    }
 }
 
 void MainWindow::checkPlayback()
@@ -437,4 +537,9 @@ static float slideMax = float(100 * 100);
 void MainWindow::on_hs_volume_valueChanged(int value)
 {
     m_playbackManager->setVolume(float(value * value)/slideMax);
+}
+
+void MainWindow::on_pb_retryDevice_clicked()
+{
+    selectAudioDevice(ui->cb_audioOutput->currentText());
 }

@@ -10,6 +10,7 @@ PlaybackManager::PlaybackManager(QObject* parent) :
     m_mainOuts({0, 1}),
     m_auxOuts({2, 3}),
     m_bufferSize(256),
+    m_sampleRate(44100),
     m_audio(new RtAudio()),
     m_volume(1.0),
     m_fadeOutFrames(0),
@@ -67,10 +68,10 @@ QString PlaybackManager::currentDevice() const
 int playbackCallback(void *outputBuffer, void *inputBuffer, unsigned int nFrames, double streamTime, RtAudioStreamStatus status, void *userData);
 void playbackErrorCallback(RtAudioError::Type type, const std::string &errorText);
 
-bool PlaybackManager::openDevice(const QString &deviceName)
+bool PlaybackManager::openDevice(QString deviceName)
 {
+    QString lastDevice = m_currentDevice;
     close();
-    m_currentDevice = QString();
     m_outChannels = 0;
 
     int idx = getDeviceNames().indexOf(deviceName);
@@ -90,18 +91,27 @@ bool PlaybackManager::openDevice(const QString &deviceName)
     else {
         m_auxOuts = { -1, -1};
     }
+
+    if (lastDevice != deviceName) {
+        m_sampleRate = info.preferredSampleRate;
+        m_bufferSize = 256;
+    }
+
     parameters.nChannels = m_outChannels;
-    unsigned int sampleRate = 44100;
-    unsigned int bufferFrames = m_bufferSize;
+    unsigned int sampleRate = m_sampleRate;
+    unsigned int plannedBufferSize = m_bufferSize;
     RtAudio::StreamOptions options;
     options.flags = RTAUDIO_NONINTERLEAVED;
     options.flags |= RTAUDIO_SCHEDULE_REALTIME;
 
     try {
         m_audio->openStream( &parameters, NULL, RTAUDIO_FLOAT32,
-                        sampleRate, &bufferFrames, &playbackCallback, this, &options );
+                        sampleRate, &m_bufferSize, &playbackCallback, this, &options );
         m_currentDevice = deviceName;
         emit opened();
+        if (plannedBufferSize != m_bufferSize) {
+            emit bufferResized(m_bufferSize);
+        }
         return true;
     }
     catch ( RtAudioError& e ) {
@@ -112,6 +122,7 @@ bool PlaybackManager::openDevice(const QString &deviceName)
 
 void PlaybackManager::close()
 {
+    m_currentDevice = QString();
     if (m_audio->isStreamOpen()) {
         abort();
         m_audio->closeStream();
@@ -218,6 +229,59 @@ void PlaybackManager::checkQueue()
         emit trackStarted(m_activeTrack->fileName());
     }
     emit queueChanged();
+}
+
+unsigned int PlaybackManager::getSampleRate() const
+{
+    return m_sampleRate;
+}
+
+bool PlaybackManager::setSampleRate(unsigned int sampleRate)
+{
+    if (m_sampleRate != sampleRate) {
+        m_mutex.lock();
+        m_sampleRate = sampleRate;
+        m_mutex.unlock();
+        return openDevice(m_currentDevice);
+    }
+    return true;
+}
+
+QVector<unsigned int> PlaybackManager::getAvailableBufferSizes() const
+{
+    return {16, 32, 64, 128, 256, 512, 1024, 2048, 4096};
+}
+
+QVector<unsigned int> PlaybackManager::getAvailableSampleRates(QString deviceName) const
+{
+    if (deviceName.isEmpty()) {
+        deviceName = m_currentDevice;
+    }
+    if (deviceName.isEmpty()) {
+        return {};
+    }
+    for (auto device: m_deviceCache) {
+        if (deviceName.toStdString() == device.name) {
+            return QVector<unsigned int>::fromStdVector(device.sampleRates);
+        }
+    }
+    return {};
+}
+
+unsigned int PlaybackManager::getBufferSize() const
+{
+    return m_bufferSize;
+}
+
+bool PlaybackManager::setBufferSize(unsigned int bufferSize)
+{
+    if (m_bufferSize != bufferSize) {
+        m_mutex.lock();
+        m_bufferSize = bufferSize;
+        m_mutex.unlock();
+        return openDevice(m_currentDevice);
+    }
+    return true;
 }
 
 ChannelPair PlaybackManager::getAuxOuts() const

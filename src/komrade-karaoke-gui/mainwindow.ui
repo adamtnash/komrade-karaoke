@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>521</width>
-    <height>281</height>
+    <width>583</width>
+    <height>336</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -18,7 +18,7 @@
     <item row="0" column="0">
      <widget class="QTabWidget" name="tabs">
       <property name="currentIndex">
-       <number>0</number>
+       <number>3</number>
       </property>
       <widget class="QWidget" name="tab_playback">
        <attribute name="title">
@@ -100,8 +100,8 @@
               <rect>
                <x>0</x>
                <y>0</y>
-               <width>477</width>
-               <height>133</height>
+               <width>539</width>
+               <height>188</height>
               </rect>
              </property>
              <layout class="QGridLayout" name="triggerGridLayout"/>
@@ -131,6 +131,9 @@
           </item>
           <item>
            <widget class="QLineEdit" name="le_backingTrack">
+            <property name="enabled">
+             <bool>false</bool>
+            </property>
             <property name="readOnly">
              <bool>true</bool>
             </property>
@@ -161,6 +164,9 @@
         <string>Devices</string>
        </attribute>
        <layout class="QVBoxLayout" name="verticalLayout_4">
+        <property name="spacing">
+         <number>6</number>
+        </property>
         <item>
          <layout class="QFormLayout" name="formLayout">
           <property name="labelAlignment">
@@ -256,7 +262,49 @@
              </widget>
             </item>
             <item row="0" column="1">
-             <widget class="QComboBox" name="cb_mainOut"/>
+             <layout class="QHBoxLayout" name="horizontalLayout_4">
+              <property name="leftMargin">
+               <number>9</number>
+              </property>
+              <property name="topMargin">
+               <number>9</number>
+              </property>
+              <property name="rightMargin">
+               <number>9</number>
+              </property>
+              <property name="bottomMargin">
+               <number>9</number>
+              </property>
+              <item>
+               <widget class="QComboBox" name="cb_mainOut"/>
+              </item>
+              <item>
+               <widget class="QLabel" name="lb_failedDevice">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Maximum" vsizetype="Preferred">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
+                <property name="text">
+                 <string>Failed to initialize!</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="pb_retryDevice">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Maximum" vsizetype="Fixed">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
+                <property name="text">
+                 <string>Retry</string>
+                </property>
+               </widget>
+              </item>
+             </layout>
             </item>
             <item row="1" column="0">
              <widget class="QLabel" name="label_7">
@@ -267,6 +315,26 @@
             </item>
             <item row="1" column="1">
              <widget class="QComboBox" name="cb_auxOut"/>
+            </item>
+            <item row="2" column="0">
+             <widget class="QLabel" name="label_8">
+              <property name="text">
+               <string>Buffer Size</string>
+              </property>
+             </widget>
+            </item>
+            <item row="2" column="1">
+             <widget class="QComboBox" name="cb_bufferSize"/>
+            </item>
+            <item row="3" column="0">
+             <widget class="QLabel" name="label_9">
+              <property name="text">
+               <string>Sample Rate</string>
+              </property>
+             </widget>
+            </item>
+            <item row="3" column="1">
+             <widget class="QComboBox" name="cb_sampleRate"/>
             </item>
            </layout>
           </item>
@@ -296,7 +364,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>521</width>
+     <width>583</width>
      <height>21</height>
     </rect>
    </property>
